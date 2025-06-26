@@ -43,7 +43,7 @@ jobs:
         uses: ./.github/actions/setup-python-env
 
       - name: Generate release notes
-        run: git-cliff --tag "v${{ github.ref_name }}" --output CHANGELOG.md
+        run: uv run git-cliff --tag "v${{ github.ref_name }}" --output CHANGELOG.md
 
       - name: Update GitHub release
         uses: softprops/action-gh-release@v1

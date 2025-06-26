@@ -1,6 +1,6 @@
 [project]
 name = "beancount_blue"
-version = "0.0.1"
+version = "1.0.0"
 description = "This is a template repository for Python projects that use uv for their dependency management."
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
 readme = "README.md"
