@@ -1,0 +1,66 @@
+name: Python Package
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/beancount_blue
+    permissions:
+      id-token: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Build package
+        run: uv run build
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Update GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Generate release notes
+        run: uv run release-notes
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Update GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          body-path: CHANGELOG.md
+          files: dist/*
+
+  deploy-docs:
+    needs: [pypi-publish, github-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Install dependencies
+        run: uv sync --system
+
+      - name: Deploy documentation
+        run: uv run mkdocs gh-deploy --force
