@@ -64,7 +64,7 @@ jobs:
         uses: ./.github/actions/setup-python-env
 
       - name: Install dependencies
-        run: uv sync --system
+        run: uv sync
 
       - name: Deploy documentation
         run: uv run mkdocs gh-deploy --force

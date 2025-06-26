@@ -1,6 +1,6 @@
 [project]
 name = "beancount_blue"
-version = "1.0.0"
+dynamic = ["version"]
 description = "This is a template repository for Python projects that use uv for their dependency management."
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
 readme = "README.md"
@@ -41,14 +41,17 @@ dev-dependencies = [
     "mkdocstrings[python]>=0.26.1",
     "pyright>=1.1.402",
     "git-cliff>=2.4.0",
+    "setuptools-scm",
 ]
 
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools>=61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["beancount_blue"]
+packages = ["beancount_blue"]
+
+[tool.setuptools_scm]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
