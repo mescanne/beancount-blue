@@ -27,8 +27,7 @@ Homepage = "https://mescanne.github.io/beancount-blue/"
 Repository = "https://github.com/mescanne/beancount-blue"
 Documentation = "https://mescanne.github.io/beancount-blue/"
 
-[tool.scripts]
-release-notes = "git-cliff --tag \"v$TAG\" --output CHANGELOG.md"
+
 
 [tool.uv]
 dev-dependencies = [

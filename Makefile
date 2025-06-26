@@ -28,7 +28,12 @@ clean-build: ## Clean build artifacts
 	@echo "🚀 Removing build artifacts"
 	@uv run python -c "import shutil; import os; shutil.rmtree('dist') if os.path.exists('dist') else None"
 
-
+.PHONY: publish
+publish: ## Publish a release to PyPI.
+	@echo "🚀 Publishing: Dry run."
+	@uvx --from build pyproject-build --installer uv
+	@echo "🚀 Publishing."
+	@uvx twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
 
 .PHONY: docs-test
 docs-test: ## Test if documentation can be built without warnings or errors
