@@ -25,6 +25,7 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
     Returns:
         A tuple of the modified entries and a list of errors.
     """
+
     config = ast.literal_eval(config_str)
     accounts = config.get("accounts", None)
     if not accounts:
@@ -43,10 +44,9 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
             errors.append(AmortizeError(source=None, message=f"no months for account {config_acct}", entry=None))
         decimals = acct_config.get("decimals", 2)
 
-        print(f"Running amortize for {acct}, counter {counteraccount}, months {months}, decimals {decimals}")
-
         # Collect all of the trading histories
         cashflow = {}
+        src = {}
         for _, entry in enumerate(entries):
             if not isinstance(entry, Transaction):
                 continue
@@ -65,6 +65,10 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
                 key = (tag, post.units.currency)
                 if key not in cashflow:
                     cashflow[key] = defaultdict(Decimal)
+                    src[key] = {
+                        "lineno": entry.meta["lineno"],
+                        "filename": entry.meta["filename"],
+                    }
                 remaining_amt = -1 * post.units.number
                 for i in range(months):
                     cashflow_amt = Decimal(round(remaining_amt / (months - i), decimals))
@@ -84,7 +88,7 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
                 new_entries.append(
                     Transaction(
                         date=date,
-                        meta={"lineno": 0},
+                        meta=src[key],
                         flag=FLAG_OKAY,
                         payee="Amortized",
                         narration=narration,
