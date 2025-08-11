@@ -14,6 +14,7 @@ amortize and the number of months for each.
 import ast
 from collections import defaultdict, namedtuple
 from decimal import Decimal
+from typing import Any
 
 from beancount.core.amount import Amount
 from beancount.core.data import Entries, Posting, Transaction
@@ -26,7 +27,7 @@ __plugins__ = ["amortize"]
 AmortizeError = namedtuple("AmortizeError", "source message entry")
 
 
-def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[AmortizeError]]:
+def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[AmortizeError]]:
     """Amortize expenses over a period of months.
 
     This function is the entry point for the Beancount plugin. It takes the

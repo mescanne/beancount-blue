@@ -28,7 +28,7 @@ from beancount.core.data import Entries, Transaction
 __plugins__ = ["tag"]
 
 
-def tag(entries: Entries, _, config_str: str) -> tuple[Entries, list[Any]]:
+def tag(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[Any]]:
     """Tag transactions based on account.
 
     This function is the entry point for the Beancount plugin. It takes the
