@@ -1,24 +1,20 @@
-"""
-A Beancount plugin to automatically clear residual lots from closed accounts.
+"""Automatically clear residual lots from closed accounts.
 
-This plugin is designed to solve a specific problem that occurs when using the
-'NONE' booking method. With this method, sales of assets do not reduce the
-original purchase lots, leaving a list of residual lots in the account's final
-inventory, even when the account's market value is zero. This causes tools
-like Fava to continue displaying these closed accounts.
+This plugin is designed to solve a specific problem that can occur when using
+the 'NONE' booking method in Beancount. With this method, sales of assets do not
+always perfectly clear the original purchase lots, which can leave small
+residual amounts in the account's inventory. This can cause issues with some
+tools, like Fava, which may continue to display accounts that should be closed.
 
-HOW IT WORKS:
-1.  It first identifies all accounts that have a 'close' directive.
-2.  It then processes all transactions for those specific accounts, building a
-    running inventory of every lot that was ever added or removed.
-3.  After calculating the final, residual inventory for each closed account, it
-    creates a single new balancing transaction for each.
-4.  This new transaction is dated the day before the account's closure and
-    contains postings that perfectly cancel out every remaining lot.
-5.  These lots are balanced against a user-specified write-down account.
-6.  The new transaction is injected into the stream of entries right before the
-    corresponding 'close' directive, ensuring the account is truly empty when
-    closed.
+This plugin solves this by creating a balancing transaction to clear out any
+remaining lots just before the account is closed.
+
+Example configuration:
+
+.. code-block:: beancount
+
+    plugin "beancount_blue.clear_residual_lots" "Equity:Gains"
+
 """
 
 # import ast

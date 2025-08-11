@@ -1,8 +1,15 @@
-# beancount-gains-calc
+# Welcome to beancount-blue
 
-[![Release](https://img.shields.io/github/v/release/mescanne/beancount-gains-calc)](https://img.shields.io/github/v/release/mescanne/beancount-gains-calc)
-[![Build status](https://img.shields.io/github/actions/workflow/status/mescanne/beancount-gains-calc/main.yml?branch=main)](https://github.com/mescanne/beancount-gains-calc/actions/workflows/main.yml?query=branch%3Amain)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/mescanne/beancount-gains-calc)](https://img.shields.io/github/commit-activity/m/mescanne/beancount-gains-calc)
-[![License](https://img.shields.io/github/license/mescanne/beancount-gains-calc)](https://img.shields.io/github/license/mescanne/beancount-gains-calc)
+`beancount-blue` is a collection of plugins for the [Beancount](https://beancount.github.io/docs/) plaintext accounting tool. These plugins provide additional functionality to help automate and streamline your bookkeeping.
 
-This is a template repository for Python projects that use uv for their dependency management.
+This documentation provides instructions on how to install, configure, and use each of the plugins in this collection.
+
+## Getting Started
+
+To get started, install the package using pip:
+
+```bash
+pip install beancount-blue
+```
+
+Then, browse the **Modules** section to find the plugin you want to use and follow the instructions in its documentation.
