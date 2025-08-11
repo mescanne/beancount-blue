@@ -19,7 +19,7 @@ class TestCalcUkGains(unittest.TestCase):
         ;  asset-class: "stock"
 
         2023/1/25 * "Acquisition"
-          Assets:Test1  10 X {{ 10.00 GBP }}
+          Assets:Test1  10 X {10.00 GBP}
           Assets:Cash  -100.00 GBP
 
         2023/2/25 * "Redemption"
