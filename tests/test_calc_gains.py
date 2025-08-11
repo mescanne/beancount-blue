@@ -5,7 +5,7 @@ from beancount.core.amount import Amount
 from beancount.core.data import Transaction
 from beancount.core.number import D
 
-from beancount_blue.calc_uk_gains import calc_gains
+from beancount_blue.calc_gains import calc_gains
 
 
 class TestCalcUkGains(unittest.TestCase):
@@ -19,12 +19,12 @@ class TestCalcUkGains(unittest.TestCase):
         ;  asset-class: "stock"
 
         2023/1/25 * "Acquisition"
-          Assets:Test1  10 X {{ 10.00 GBP }}
-          Assets:Test1  -10.00 GBP
+          Assets:Test1  10 X {10.00 GBP}
+          Assets:Cash  -100.00 GBP
 
         2023/2/25 * "Redemption"
-          Assets:Test1  -4 X {{ 74.80 GBP }}
-          Assets:Test1  74.80 GBP
+          Assets:Test1  -4 X {}
+          Assets:Cash   90.00 GBP
         """
 
         config = """{
@@ -38,8 +38,8 @@ class TestCalcUkGains(unittest.TestCase):
 
         (gain_transactions, errors) = calc_gains(entries, options_map, config)
 
-        self.assertEqual(3, len(gain_transactions))
-        gain_txn = gain_transactions[2]
+        self.assertEqual(4, len(gain_transactions))
+        gain_txn = gain_transactions[3]
 
         if not isinstance(gain_txn, Transaction):
             self.assertTrue(False, "invalid type")
@@ -47,25 +47,19 @@ class TestCalcUkGains(unittest.TestCase):
 
         self.assertEqual(3, len(gain_txn.postings))
 
-        self.assertEqual(3, len(gain_txn.postings))
+        # The original posting being adjusted
+        self.assertEqual("Assets:Test1", gain_txn.postings[0].account)
+        self.assertEqual(Amount(D("-4"), "X"), gain_txn.postings[0].units)
+        # The cost is adjusted to the average cost of 10.00
+        self.assertEqual(D("10.00"), gain_txn.postings[0].cost.number)  # type: ignore[attr-defined]
 
-        # Sort postings by account name for predictable order
-        postings = sorted(gain_txn.postings, key=lambda p: p.account)
+        # The original cash posting
+        self.assertEqual("Assets:Cash", gain_txn.postings[1].account)
+        self.assertEqual(Amount(D("90.00"), "GBP"), gain_txn.postings[1].units)
 
-        for p in gain_txn.postings:
-            print(p)
-
-        # Check the posting to the asset account (cost basis adjustment)
-        self.assertEqual("Assets:Test1", postings[0].account)
-        self.assertEqual(Amount(D("-4"), "X"), postings[0].units)
-        self.assertEqual(Amount(D("1.00"), "GBP"), postings[0].cost)
-
-        self.assertEqual("Assets:Test1", postings[1].account)
-        self.assertEqual(Amount(D("74.80"), "GBP"), postings[1].units)
-
-        # Check the posting to the gains account
-        self.assertEqual("Equity:Gains", postings[2].account)
-        self.assertEqual(Amount(D("-70.80"), "GBP"), postings[2].units)
+        # The new adjustment posting for the gain
+        self.assertEqual("Equity:Gains", gain_txn.postings[2].account)
+        self.assertEqual(Amount(D("-50.00"), "GBP"), gain_txn.postings[2].units)
 
 
 # Tests:

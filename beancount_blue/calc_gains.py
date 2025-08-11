@@ -1,7 +1,32 @@
-"""Calculate capital gains for UK tax purposes."""
+"""Flexible capital gains calculator.
+
+This plugin calculates capital gains on transactions. It is designed to be
+flexible and can be configured to support various capital gains calculation
+methods. By default, it supports averaging the cost of all lots (a "cost_avg"
+method).
+
+This is particularly useful for investment accounts where you need to track the
+cost basis of your assets and calculate the gain or loss when you sell them.
+
+Example configuration:
+
+.. code-block:: beancount
+
+    plugin "beancount_blue.calc_gains" "{
+        'accounts': {
+            'Assets:Investments:Broker': {
+                'method': 'cost_avg',
+                'counterAccount': 'Equity:Gains'
+            }
+        }
+    }"
+
+"""
 
 import ast
 import datetime
+from decimal import Decimal
+from typing import NamedTuple, Optional
 
 from beancount.core.amount import Amount
 from beancount.core.data import Directive, Entries, Meta, Posting, Transaction
@@ -9,8 +34,6 @@ from beancount.core.position import CostSpec
 
 __plugins__ = ["calc_gains"]
 
-from decimal import Decimal
-from typing import NamedTuple, Optional
 
 PostingID = tuple[int, int]
 
@@ -42,16 +65,19 @@ class GainsCalculatorError(NamedTuple):
     entry: object
 
 
-# cost_avg:
-# Take in a list of trades and return a list of Adjustments
 def cost_avg(trades: list[Trade]) -> list[Adjustment]:
     """Calculate the average cost of a list of trades.
 
-    Args:
-        trades: A list of trades.
+        This function implements the "average cost" method of calculating capital
+        gains. It averages the cost of all lots purchased and uses that average
+    cost
+        to determine the gain or loss on a sale.
 
-    Returns:
-        A list of adjustments.
+        Args:
+            trades: A list of trades.
+
+        Returns:
+            A list of adjustments.
     """
     adjs = []
     total_units = Decimal(0)
@@ -93,7 +119,7 @@ class Account:
         """
         self.account = account
         self.config = config
-        self.cost_currency = None
+        self.cost_currency = {}
         self.history = {}
         self.last_balance = {}
 
@@ -129,27 +155,27 @@ class Account:
         Returns:
             An error message if there was an error, otherwise None.
         """
-        # Validate the cost currency
-        # TODO: Should be indexed per posting.unit.currency
         if posting.cost is None:
-            return f"posting {entry.date} and {posting.account} has no cost"
-
+            return f"posting on {entry.date} in {posting.account} has no cost"
         if posting.units is None or posting.units.number is None:
-            return f"posting {entry.date} and {posting.account} has no units"
+            return f"posting on {entry.date} in {posting.account} has no units"
 
-        if self.cost_currency is None:
-            self.cost_currency = posting.cost.currency
-        elif self.cost_currency != posting.cost.currency:
+        # Validate the cost currency for this asset
+        asset_currency = posting.units.currency
+        cost_currency = posting.cost.currency
+        if asset_currency not in self.cost_currency:
+            self.cost_currency[asset_currency] = cost_currency
+        elif self.cost_currency[asset_currency] != cost_currency:
             return (
-                f"account {self.account} has inconsistent cost currencies:"
-                + f"{self.cost_currency} and {posting.units.currency}"
+                f"account {self.account} has inconsistent cost currencies for "
+                f"{asset_currency}: {self.cost_currency[asset_currency]} and {cost_currency}"
             )
 
-        if posting.cost.date != entry.date:
-            return f"cost date {posting.cost.date} is different" + f"than transaction date {entry.date}"
+        if posting.cost.date and posting.cost.date != entry.date:
+            return f"cost date {posting.cost.date} is different from transaction date {entry.date}"
 
         # Get the last balance
-        balance = self.last_balance.get(posting.units.currency, Decimal(0))
+        balance = self.last_balance.get(asset_currency, Decimal(0))
 
         # Determine if realizing
         # print(posting)

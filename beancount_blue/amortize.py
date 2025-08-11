@@ -1,7 +1,20 @@
-"""Amortize expenses over a period of months."""
+"""Amortize expenses over a period of months.
+
+This plugin amortizes expenses over a specified number of months. When you
+purchase something with a long-term benefit (like a yearly subscription), you
+can use this plugin to spread the expense over the entire period.
+
+For example, if you have a transaction for a 12-month subscription, this plugin
+will generate a series of transactions to spread the cost over the 12 months.
+
+To use this plugin, you need to configure it with the accounts you want to
+amortize and the number of months for each.
+"""
 
 import ast
 from collections import defaultdict, namedtuple
+from decimal import Decimal
+from typing import Any
 
 from beancount.core.amount import Amount
 from beancount.core.data import Entries, Posting, Transaction
@@ -10,16 +23,33 @@ from dateutil import relativedelta
 
 __plugins__ = ["amortize"]
 
-from decimal import Decimal
 
 AmortizeError = namedtuple("AmortizeError", "source message entry")
 
 
-def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[AmortizeError]]:
+def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[AmortizeError]]:
     """Amortize expenses over a period of months.
+
+    This function is the entry point for the Beancount plugin. It takes the
+    existing entries, the Beancount options, and a configuration string.
+
+    The configuration string should be a Python dictionary literal that specifies
+    which accounts to amortize and over how many months.
+
+    Example configuration:
+
+    .. code-block:: beancount
+
+        plugin "beancount_blue.amortize" "{
+            'accounts': {
+                'Expenses:Software': {'months': 12},
+                'Expenses:Subscriptions': {'months': 12},
+            }
+        }"
 
     Args:
         entries: A list of beancount entries.
+        _: The Beancount options map (not used).
         config_str: A string containing the configuration for the plugin.
 
     Returns:
@@ -69,15 +99,44 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
                         "lineno": entry.meta["lineno"],
                         "filename": entry.meta["filename"],
                     }
-                remaining_amt = -1 * post.units.number
+                # Immediately reverse the original expense
+                new_entries.append(
+                    Transaction(
+                        date=entry.date,
+                        meta=entry.meta,
+                        flag=FLAG_OKAY,
+                        payee="Amortization",
+                        narration=f"Reverse original expense for {config_acct}",
+                        tags=frozenset([*list(entry.tags), "amort-internal"]),
+                        links=frozenset(),
+                        postings=[
+                            Posting(
+                                acct,
+                                Amount(number=-1 * post.units.number, currency=post.units.currency),
+                                None,
+                                None,
+                                None,
+                                {},
+                            ),
+                            Posting(
+                                counteraccount,
+                                Amount(number=post.units.number, currency=post.units.currency),
+                                None,
+                                None,
+                                None,
+                                {},
+                            ),
+                        ],
+                    )
+                )
+
+                remaining_amt = post.units.number
                 for i in range(months):
                     cashflow_amt = Decimal(round(remaining_amt / (months - i), decimals))
                     cashflow_date = (
                         entry.date + relativedelta.relativedelta(months=i) + relativedelta.relativedelta(day=31)
                     )
                     cashflow[key][cashflow_date] += cashflow_amt
-                    if i == 0:
-                        cashflow[key][cashflow_date] += post.units.number
                     remaining_amt -= cashflow_amt
 
         for key, amts in cashflow.items():

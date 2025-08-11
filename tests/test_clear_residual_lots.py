@@ -57,3 +57,5 @@ class TestClearResidualLots(unittest.TestCase):
         self.assertEqual(Amount(D("10"), "TEST"), generated_txn.postings[2].units)
         self.assertEqual("Equity:Gains", generated_txn.postings[3].account)
         self.assertEqual(Amount(D("-10"), "TEST"), generated_txn.postings[3].units)
+
+        # TODO: Check that the account is now empty
