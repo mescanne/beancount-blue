@@ -106,11 +106,25 @@ def amortize(entries: Entries, _, config_str: str) -> tuple[Entries, list[Amorti
                         flag=FLAG_OKAY,
                         payee="Amortization",
                         narration=f"Reverse original expense for {config_acct}",
-                        tags=frozenset(list(entry.tags) + ["amort-internal"]),
+                        tags=frozenset([*list(entry.tags), "amort-internal"]),
                         links=frozenset(),
                         postings=[
-                            Posting(acct, Amount(number=-1 * post.units.number, currency=post.units.currency), None, None, None, {}),
-                            Posting(counteraccount, Amount(number=post.units.number, currency=post.units.currency), None, None, None, {}),
+                            Posting(
+                                acct,
+                                Amount(number=-1 * post.units.number, currency=post.units.currency),
+                                None,
+                                None,
+                                None,
+                                {},
+                            ),
+                            Posting(
+                                counteraccount,
+                                Amount(number=post.units.number, currency=post.units.currency),
+                                None,
+                                None,
+                                None,
+                                {},
+                            ),
                         ],
                     )
                 )

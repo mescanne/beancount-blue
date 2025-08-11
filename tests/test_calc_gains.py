@@ -51,7 +51,7 @@ class TestCalcUkGains(unittest.TestCase):
         self.assertEqual("Assets:Test1", gain_txn.postings[0].account)
         self.assertEqual(Amount(D("-4"), "X"), gain_txn.postings[0].units)
         # The cost is adjusted to the average cost of 10.00
-        self.assertEqual(D("10.00"), gain_txn.postings[0].cost.number)
+        self.assertEqual(D("10.00"), gain_txn.postings[0].cost.number)  # type: ignore[attr-defined]
 
         # The original cash posting
         self.assertEqual("Assets:Cash", gain_txn.postings[1].account)
