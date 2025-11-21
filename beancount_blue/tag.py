@@ -54,8 +54,6 @@ def tag(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[Any]]:
 
     errors = []
     for acct, tag in accounts.items():
-        print(f"Running tag for {acct}, tag {tag}")
-
         for transId, entry in enumerate(new_entries):
             if not isinstance(entry, Transaction):
                 continue
