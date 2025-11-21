@@ -1,35 +1,13 @@
-"""Flexible capital gains calculator.
-
-This plugin calculates capital gains on transactions. It is designed to be
-flexible and can be configured to support various capital gains calculation
-methods. By default, it supports averaging the cost of all lots (a "cost_avg"
-method).
-
-This is particularly useful for investment accounts where you need to track the
-cost basis of your assets and calculate the gain or loss when you sell them.
-
-Example configuration:
-
-.. code-block:: beancount
-
-    plugin "beancount_blue.calc_gains" "{
-        'accounts': {
-            'Assets:Investments:Broker': {
-                'method': 'cost_avg',
-                'counterAccount': 'Equity:Gains'
-            }
-        }
-    }"
-
-"""
+"""Calculate capital gains."""
 
 import ast
 import datetime
-from decimal import Decimal
-from typing import NamedTuple, Optional
+from typing import Callable
 
 from beancount.core.amount import Amount
 from beancount.core.data import Directive, Entries, Meta, Posting, Transaction
+from beancount.core.inventory import Inventory
+from beancount.core.number import ZERO
 from beancount.core.position import CostSpec
 
 __plugins__ = ["calc_gains"]
@@ -42,19 +20,12 @@ class Trade(NamedTuple):
     """A trade in a security."""
 
     postingId: PostingID
-    date: datetime.date
-    units: Decimal
-    price: Decimal
-    realizing: bool
-
-
-class Adjustment(NamedTuple):
-    """An adjustment to a trade."""
-
-    postingId: PostingID
-    price: Decimal
-    counterAmount: Decimal
-    counterAccount: Optional[str]
+    balance: Decimal  # total units (before this trade)
+    date: datetime.date  # date of trade
+    units: Decimal  # units of trade (+/-)
+    price: Decimal  # price of trade
+    consideration: Decimal  # units * price
+    realizing: bool  # whether units brings balance closer to zero
 
 
 class GainsCalculatorError(NamedTuple):
@@ -65,7 +36,9 @@ class GainsCalculatorError(NamedTuple):
     entry: object
 
 
-def cost_avg(trades: list[Trade]) -> list[Adjustment]:
+# Take in a list of trades and return a list of cost basis for all
+# realizing trades.
+def get_realizing_cost_consideration(trades: list[Trade]) -> list[Decimal]:
     """Calculate the average cost of a list of trades.
 
         This function implements the "average cost" method of calculating capital
@@ -77,33 +50,23 @@ def cost_avg(trades: list[Trade]) -> list[Adjustment]:
             trades: A list of trades.
 
         Returns:
-            A list of adjustments.
+            A list of cost basis for all realizing trades.
     """
-    adjs = []
+
     total_units = Decimal(0)
     total_cost = Decimal(0)
+    cost_consideration = []
     for _, trade in enumerate(trades):
         if trade.realizing:
-            avg_cost_price = total_cost / total_units
-            if trade.price != avg_cost_price:
-                adjs.append(
-                    Adjustment(
-                        postingId=trade.postingId,
-                        price=total_cost / total_units,
-                        counterAmount=((trade.price * trade.units) - (avg_cost_price * trade.units)),
-                        counterAccount=None,
-                    )
-                )
-            total_cost += trade.units * avg_cost_price
-        else:
-            total_cost += trade.units * trade.price
+            cost_consideration.append(trade.units * (total_cost / total_units))
+        total_cost += trade.price * trade.units
         total_units += trade.units
-    return adjs
+    return cost_consideration
 
 
 # Available methods
-METHODS = {
-    "cost_avg": cost_avg,
+METHODS: dict[str, Callable[[list[Trade]], list[Decimal]]] = {
+    "cost_avg": get_realizing_cost_consideration,
 }
 
 
@@ -123,26 +86,76 @@ class Account:
         self.history = {}
         self.last_balance = {}
 
-    def process(self) -> list[Adjustment]:
+        if self.config.get("method", "") not in METHODS:
+            raise ValueError(f"Account {self.account} has no valid method, mustbe one of {', '.join(METHODS.keys())}")  # noqa: TRY003
+
+        self.method: Callable[[list[Trade]], list[Decimal]] = METHODS[self.config.get("method", "")]
+
+        if "counterAccount" not in self.config:
+            raise ValueError(f"Account {self.account} has no valid counter account")  # noqa: TRY003
+
+        self.cacct: str = str(self.config["counterAccount"])
+
+        self.lots_adjust = bool(self.config.get("lots_adjust", False))
+
+    def process(self, entries: Entries):
         """Process the trades in the account.
 
         Returns:
             A list of adjustments.
         """
-        adjustments = []
-
-        method = METHODS.get(self.config.get("method", ""), None)
-        if method is None:
-            raise Exception(f"Account {self.account} has no valid method, mustbe one of {', '.join(METHODS.keys())}")  # noqa: TRY002, TRY003
-
-        cacct = self.config.get("counterAccount", None)
-
         # Add in counteraccount configuration
         for trades in self.history.values():
-            adjs = method(trades)
-            adjustments.extend([a._replace(counterAccount=cacct) for a in adjs])
+            inventory = Inventory()
+            adjs = self.method(trades)
+            # if self.lots_adjust:
+            #    print(f"Calculated cost consideration: {adjs}")
+            for trade in trades:
+                trans = entries[trade.postingId[0]]
 
-        return adjustments
+                new_cost_consideration = adjs.pop(0) if trade.realizing else trade.price * trade.units
+
+                # Liquidiate previous holdings
+                liquidated_balance = Decimal(0)
+                liquidated_cost = Decimal(0)
+                if self.lots_adjust:
+                    for pos in inventory.get_positions():
+                        if not pos.cost or not pos.units.number or pos.units.number == ZERO:
+                            continue
+                        liquidated_cost += pos.cost.number * pos.units.number
+                        liquidated_balance += pos.units.number
+                        trans.postings.append(
+                            Posting(self.account, -pos.units, pos.cost, None, None, None),
+                        )
+                    inventory = Inventory()
+
+                # New cost basis after realizing trade - bring in a new holding
+                trans.postings[trade.postingId[1]] = trans.postings[trade.postingId[1]]._replace(
+                    units=trans.postings[trade.postingId[1]].units._replace(
+                        number=liquidated_balance + trade.units,
+                    ),
+                    cost=trans.postings[trade.postingId[1]].cost._replace(
+                        number=(new_cost_consideration / trade.units),
+                        date=trans.date,
+                    ),
+                )
+                inventory.add_position(trans.postings[trade.postingId[1]])
+
+                # Calculate the counteramount
+                camt = trade.price * trade.units
+                camt -= (liquidated_balance + trade.units) * (new_cost_consideration / trade.units)
+                camt += liquidated_cost
+                if camt != Decimal(0):
+                    trans.postings.append(
+                        Posting(
+                            account=self.cacct,
+                            units=Amount(number=camt, currency=trans.postings[trade.postingId[1]].cost.currency),
+                            cost=None,
+                            price=None,
+                            flag=None,
+                            meta={"note": "full_adjustment" if self.lots_adjust else "part_adjust"},
+                        )
+                    )
 
     def add_posting(self, postingId: PostingID, entry: Transaction, posting: Posting) -> Optional[str]:
         """Add a posting to the account.
@@ -184,8 +197,6 @@ class Account:
         else:
             realizing = False
 
-        # TODO: Validate cost date versus transaction date
-
         # Add the trade
         price = posting.cost.number_per if isinstance(posting.cost, CostSpec) else posting.cost.number
         if price is None:
@@ -195,8 +206,10 @@ class Account:
             Trade(
                 postingId=postingId,
                 date=entry.date,
+                balance=balance,
                 units=posting.units.number,
                 price=price,
+                consideration=posting.units.number * price,
                 realizing=realizing,
             )
         )
@@ -239,41 +252,11 @@ def calc_gains(entries: Entries, _, config_str: str) -> tuple[list[Directive], l
                 continue
             accounts[post.account].add_posting((transId, postId), entry, post)
 
-    # Collect adjustments for accounts
-    adjs = []
-    for account in accounts.values():
-        adjs.extend(account.process())
-
     # Apply adjustments to the entries
     new_entries = entries.copy()
-    errors = []
-    for adj in adjs:
-        trans = new_entries[adj.postingId[0]]
 
-        # If there is no counterAccount, we need to report an error
-        if adj.counterAccount is None:
-            errors.append(
-                GainsCalculatorError(trans.meta, f"Calculated cost price is {adj.price}, not matching", trans)
-            )
-            continue
+    # Process accounts
+    for account in accounts.values():
+        account.process(new_entries)
 
-        # Adjust the price
-        trans.postings[adj.postingId[1]] = trans.postings[adj.postingId[1]]._replace(
-            cost=trans.postings[adj.postingId[1]].cost._replace(
-                number=adj.price,
-            )
-        )
-
-        # Create the adjustment posting
-        trans.postings.append(
-            Posting(
-                account=adj.counterAccount,
-                units=Amount(number=adj.counterAmount, currency=trans.postings[adj.postingId[1]].cost.currency),
-                cost=None,
-                price=None,
-                flag=None,
-                meta={"note": "adjusted"},
-            )
-        )
-
-    return new_entries, errors
+    return new_entries, []

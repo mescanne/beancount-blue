@@ -1,14 +1,47 @@
 """Amortize expenses over a period of months.
 
-This plugin amortizes expenses over a specified number of months. When you
-purchase something with a long-term benefit (like a yearly subscription), you
-can use this plugin to spread the expense over the entire period.
+This plugin will amortize all transactions in an Expense account in one aggregate transaction
+across multiple months.
 
-For example, if you have a transaction for a 12-month subscription, this plugin
-will generate a series of transactions to spread the cost over the 12 months.
+Key features:
+ * It creates a single transaction each month to adjust the net expense to the amortized amount. It uses the Equity account if it needs to adjust the net expense over the time period.
+ * It tags all adjustments with #amort so they can be filter out all amortization adjustments.
+ * If the transaction has a tag, then the adjustments grouped by the tag and have both #amort and the transaction tag. This allows you to divide up different holidays by tag, for example.
+ * You can configure the decimals for rounding and number of months.
 
-To use this plugin, you need to configure it with the accounts you want to
-amortize and the number of months for each.
+This is best explained through a demonstration.
+
+Example book:
+
+    ; Configure the Expenses:Renovation account to be amortized over 12 months.
+    ;
+    ; It will use the Equity:Amortization:Renovation account as the holding account.
+    ;
+    plugin "beancount_blue.amortize" "{
+            'accounts': {
+                    'Expenses:Renovation': {
+                        'expense_account': 'Expenses:Renovation',
+                        'months': 12,
+                        'decimals': 2,
+                    },
+            }
+    }"
+
+    2023-01-15 * "Assorted Purchase"
+      Expenses:Renovation  1000.00 GBP
+      Assets:Bank         -1000.00 GBP
+
+    2023-01-25 * "Assorted Purchase 2"
+      Expenses:Renovation  200.00 GBP
+      Assets:Bank         -200.00 GBP
+
+    2023-02-15 * "Assorted Purchase 3"
+      Expenses:Renovation  360.00 GBP
+      Assets:Bank         -360.00 GBP
+
+What will happen as a result of the above:
+ * The first two transactions in January are aggregated (1200 GBP) and then divided up over 12 months, so 100 GBP a month from Jan 2023 to Dec 2023.
+ * The transaction in February is divided up over 12 months, so 30 GBP a month from Feb 2023 to Jan 2024.
 """
 
 import ast
@@ -65,9 +98,12 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
 
     errors = []
     for config_acct, acct_config in accounts.items():
-        if not config_acct.startswith("Expenses:"):
-            raise Exception(f"amortize requires Expenses: accounts, got {config_acct}")  # noqa: TRY002, TRY003
-        acct = config_acct.replace("Expenses:", "Equity:Amortization:")
+        if config_acct.startswith("Expenses:"):
+            acct = config_acct.replace("Expenses:", "Equity:Amortization:")
+        elif config_acct.startswith("Income:"):
+            acct = config_acct.replace("Income:", "Equity:Amortization:")
+        else:
+            raise Exception(f"amortize requires Expenses: or Income: accounts, got {config_acct}")  # noqa: TRY002, TRY003
         counteraccount = config_acct
         months = acct_config.get("months", None)
         if months is None:
@@ -99,40 +135,13 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                         "lineno": entry.meta["lineno"],
                         "filename": entry.meta["filename"],
                     }
-                # Immediately reverse the original expense
-                new_entries.append(
-                    Transaction(
-                        date=entry.date,
-                        meta=entry.meta,
-                        flag=FLAG_OKAY,
-                        payee="Amortization",
-                        narration=f"Reverse original expense for {config_acct}",
-                        tags=frozenset([*list(entry.tags), "amort-internal"]),
-                        links=frozenset(),
-                        postings=[
-                            Posting(
-                                acct,
-                                Amount(number=-1 * post.units.number, currency=post.units.currency),
-                                None,
-                                None,
-                                None,
-                                {},
-                            ),
-                            Posting(
-                                counteraccount,
-                                Amount(number=post.units.number, currency=post.units.currency),
-                                None,
-                                None,
-                                None,
-                                {},
-                            ),
-                        ],
-                    )
-                )
-
-                remaining_amt = post.units.number
-                for i in range(months):
-                    cashflow_amt = Decimal(round(remaining_amt / (months - i), decimals))
+                remaining_amt = -1 * post.units.number
+                amort_months = months
+                if "amortization_months" in entry.meta:
+                    # print(f'Overriding amortization months to {entry.meta["amortization_months"]}')
+                    amort_months = int(entry.meta["amortization_months"])
+                for i in range(amort_months):
+                    cashflow_amt = Decimal(round(remaining_amt / (amort_months - i), decimals))
                     cashflow_date = (
                         entry.date + relativedelta.relativedelta(months=i) + relativedelta.relativedelta(day=31)
                     )
@@ -143,7 +152,11 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
             narration = "Amortization Adjustment"
             if key[0]:
                 narration = narration + f" for {key[0]}"
+            # print(f'Running amorization for {len(amts)} for key {key}, {acct}, {config_acct}')
             for date, amt in amts.items():
+                # print(f'Date {date} Amount {amt}')
+                if amt == Decimal(0):
+                    continue
                 new_entries.append(
                     Transaction(
                         date=date,
