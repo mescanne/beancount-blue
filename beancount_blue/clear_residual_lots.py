@@ -30,7 +30,7 @@ from beancount.core.number import ZERO
 __plugins__ = ["clear_residual_lots"]
 
 
-def clear_residual_lots(entries, _, config_str) -> tuple[Entries, list[Any]]:
+def clear_residual_lots(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[Any]]:
     """
     The main plugin function.
 
