@@ -1,6 +1,7 @@
 import unittest
 
 from beancount import loader
+from beancount.core.compare import compare_entries
 
 from beancount_blue.amortize import amortize
 
@@ -26,39 +27,70 @@ class TestAmortize(unittest.TestCase):
                 }
         }"""
 
-        new_entries, errors = amortize(entries, options_map, config)
+        entries, errors = amortize(entries, options_map, config)
 
-        self.assertEqual(0, len(errors))
-        self.assertEqual(16, len(new_entries))
+        amortized_entries, _, _ = loader.load_string("""
+            2023-01-15 open Assets:Cash
 
-        # The original transaction plus 1 reversing transaction plus 12 amortization transactions
-        amortization_txns = new_entries[4:]
-        from beancount.core.data import Transaction
+            2023-01-15 open Expenses:Software
 
-        transactions = [txn for txn in amortization_txns if isinstance(txn, Transaction)]
+            2023-01-15 * "Software Purchase"
+              Expenses:Software   1200.00 GBP
+              Assets:Cash        -1200.00 GBP
 
-        from decimal import Decimal
+            2023-01-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
 
-        # Check the first amortization transaction
-        posting = transactions[0].postings[0]
-        if posting.units and posting.units.number is not None:
-            self.assertEqual(Decimal("100.00"), posting.units.number)
-        posting = transactions[0].postings[1]
-        if posting.units and posting.units.number is not None:
-            self.assertEqual(Decimal("-100.00"), posting.units.number)
+            2023-02-28 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
 
-        # Check the last amortization transaction
-        posting = transactions[11].postings[0]
-        if posting.units and posting.units.number is not None:
-            self.assertEqual(Decimal("100.00"), posting.units.number)
-        posting = transactions[11].postings[1]
-        if posting.units and posting.units.number is not None:
-            self.assertEqual(Decimal("-100.00"), posting.units.number)
+            2023-03-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
 
-        # Check the total amount amortized
-        total_amortized = Decimal(0)
-        for txn in transactions:
-            posting = txn.postings[0]
-            if posting.units and posting.units.number is not None:
-                total_amortized += posting.units.number
-        self.assertAlmostEqual(Decimal("1200.00"), total_amortized, places=2)
+            2023-04-30 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-05-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-06-30 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-07-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-08-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-09-30 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-10-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-11-30 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP
+
+            2023-12-31 * "Amortized" "Amortization Adjustment" #amort
+              Equity:Amortization:Software  -100.00 GBP
+              Expenses:Software              100.00 GBP""")
+
+        same, removed_entries, added_entries = compare_entries(amortized_entries, entries)
+
+        if not same:
+            if removed_entries:
+                print("Entries removed: ", removed_entries)
+            if added_entries:
+                print("Entries added: ", added_entries)
+            self.assertTrue(False)

@@ -2,7 +2,8 @@
 
 import ast
 import datetime
-from typing import Callable
+from decimal import Decimal
+from typing import Callable, NamedTuple, Optional
 
 from beancount.core.amount import Amount
 from beancount.core.data import Directive, Entries, Meta, Posting, Transaction
