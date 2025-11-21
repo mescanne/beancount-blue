@@ -2,7 +2,8 @@
 
 import ast
 import datetime
-from typing import Callable
+from decimal import Decimal
+from typing import Callable, NamedTuple, Optional
 
 from beancount.core.amount import Amount
 from beancount.core.data import Directive, Entries, Meta, Posting, Transaction
@@ -99,10 +100,10 @@ class Account:
         self.lots_adjust = bool(self.config.get("lots_adjust", False))
 
     def process(self, entries: Entries):
-        """Process the trades in the account.
+        """Process the entries as configured.
 
-        Returns:
-            A list of adjustments.
+        Args:
+            entries: The set of entries
         """
         # Add in counteraccount configuration
         for trades in self.history.values():
