@@ -13,7 +13,7 @@
     // 2. Node.js (Required strictly to run the official Gemini CLI)
     "ghcr.io/devcontainers/features/node:1": {},
     // 3. Google Cloud CLI (Required for Vertex AI Auth)
-    "ghcr.io/devcontainers/features/google-cloud-cli:1": {}
+    "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
   },
 
   "customizations": {
