@@ -1,9 +1,14 @@
 {
   "name": "Python 3.14 with uv",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
+  "image": "mcr.microsoft.com/devcontainers/python:3.14-bookworm",
+  
+  "features": {
+    // Adds common CLI tools (zsh, git, curl, etc.) automatically
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "vscode"
+    }
   },
+
   "customizations": {
     "vscode": {
       "settings": {
@@ -12,15 +17,14 @@
       },
       "extensions": [
         "ms-python.python",
-        "ms-python.vscode-pylance",
-        "charliermarsh.ruff" 
+        "charliermarsh.ruff"
       ]
     }
   },
-  // Use the non-root user created in the Dockerfile
+
   "remoteUser": "vscode",
-  
-  // Post-create command: Install dependencies if a lockfile exists
-  // Uses 'uv sync' which is extremely fast
-  "postCreateCommand": "uv sync || echo 'No uv.lock found, skipping install'"
+
+  // This is the "Magic" standard for tools that don't have an official Feature yet.
+  // We install uv and immediately sync dependencies.
+  "postCreateCommand": "pip install uv && uv sync || echo 'No uv.lock found'"
 }
