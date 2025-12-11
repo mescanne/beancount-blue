@@ -6,6 +6,9 @@
     // Adds common CLI tools (zsh, git, curl, etc.) automatically
     "ghcr.io/devcontainers/features/common-utils:2": {
       "username": "vscode"
+    },
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": "python3-dev,build-essential"
     }
   },
 
