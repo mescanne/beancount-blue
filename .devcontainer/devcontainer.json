@@ -9,9 +9,9 @@
     },
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
       "packages": "python3-dev,build-essential,bison,flex,ninja-build"
-    }
+    },
     // 2. Node.js (Required strictly to run the official Gemini CLI)
-    "ghcr.io/devcontainers/features/node:1": {}
+    "ghcr.io/devcontainers/features/node:1": {},
     // 3. Google Cloud CLI (Required for Vertex AI Auth)
     "ghcr.io/devcontainers/features/google-cloud-cli:1": {}
   },
