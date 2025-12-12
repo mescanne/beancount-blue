@@ -2,8 +2,9 @@
 
 import ast
 import datetime
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Callable, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 from beancount.core.amount import Amount
 from beancount.core.data import Directive, Entries, Meta, Posting, Transaction
@@ -56,7 +57,7 @@ def get_realizing_cost_consideration(trades: list[Trade]) -> list[Decimal]:
 
     total_units = Decimal(0)
     total_cost = Decimal(0)
-    cost_consideration = []
+    cost_consideration: list[Decimal] = []
     for _, trade in enumerate(trades):
         if trade.realizing:
             cost_consideration.append(trade.units * (total_cost / total_units))
@@ -74,7 +75,16 @@ METHODS: dict[str, Callable[[list[Trade]], list[Decimal]]] = {
 class Account:
     """An account that holds securities."""
 
-    def __init__(self, account: str, config: dict):
+    account: str
+    config: dict[str, Any]
+    cost_currency: dict[str, str]
+    history: dict[str, list[Trade]]
+    last_balance: dict[str, Decimal]
+    method: Callable[[list[Trade]], list[Decimal]]
+    cacct: str
+    lots_adjust: bool
+
+    def __init__(self, account: str, config: dict[str, Any]):
         """Initialize the account.
 
         Args:
@@ -90,12 +100,12 @@ class Account:
         if self.config.get("method", "") not in METHODS:
             raise ValueError(f"Account {self.account} has no valid method, mustbe one of {', '.join(METHODS.keys())}")  # noqa: TRY003
 
-        self.method: Callable[[list[Trade]], list[Decimal]] = METHODS[self.config.get("method", "")]
+        self.method = METHODS[self.config.get("method", "")]
 
         if "counterAccount" not in self.config:
             raise ValueError(f"Account {self.account} has no valid counter account")  # noqa: TRY003
 
-        self.cacct: str = str(self.config["counterAccount"])
+        self.cacct = str(self.config["counterAccount"])
 
         self.lots_adjust = bool(self.config.get("lots_adjust", False))
 
@@ -113,6 +123,8 @@ class Account:
             #    print(f"Calculated cost consideration: {adjs}")
             for trade in trades:
                 trans = entries[trade.postingId[0]]
+                if not isinstance(trans, Transaction):
+                    continue
 
                 new_cost_consideration = adjs.pop(0) if trade.realizing else trade.price * trade.units
 
@@ -131,15 +143,17 @@ class Account:
                     inventory = Inventory()
 
                 # New cost basis after realizing trade - bring in a new holding
-                trans.postings[trade.postingId[1]] = trans.postings[trade.postingId[1]]._replace(
-                    units=trans.postings[trade.postingId[1]].units._replace(
-                        number=liquidated_balance + trade.units,
-                    ),
-                    cost=trans.postings[trade.postingId[1]].cost._replace(
-                        number=(new_cost_consideration / trade.units),
-                        date=trans.date,
-                    ),
-                )
+                posting = trans.postings[trade.postingId[1]]
+                if posting.units and posting.cost:
+                    trans.postings[trade.postingId[1]] = posting._replace(
+                        units=posting.units._replace(
+                            number=liquidated_balance + trade.units,
+                        ),
+                        cost=posting.cost._replace(
+                            number=(new_cost_consideration / trade.units),
+                            date=trans.date,
+                        ),
+                    )
                 inventory.add_position(trans.postings[trade.postingId[1]])
 
                 # Calculate the counteramount
@@ -147,18 +161,20 @@ class Account:
                 camt -= (liquidated_balance + trade.units) * (new_cost_consideration / trade.units)
                 camt += liquidated_cost
                 if camt != Decimal(0):
-                    trans.postings.append(
-                        Posting(
-                            account=self.cacct,
-                            units=Amount(number=camt, currency=trans.postings[trade.postingId[1]].cost.currency),
-                            cost=None,
-                            price=None,
-                            flag=None,
-                            meta={"note": "full_adjustment" if self.lots_adjust else "part_adjust"},
+                    cost = trans.postings[trade.postingId[1]].cost
+                    if cost and cost.currency:
+                        trans.postings.append(
+                            Posting(
+                                account=self.cacct,
+                                units=Amount(number=camt, currency=cost.currency),
+                                cost=None,
+                                price=None,
+                                flag=None,
+                                meta={"note": "full_adjustment" if self.lots_adjust else "part_adjust"},
+                            )
                         )
-                    )
 
-    def add_posting(self, postingId: PostingID, entry: Transaction, posting: Posting) -> Optional[str]:
+    def add_posting(self, postingId: PostingID, entry: Transaction, posting: Posting) -> str | None:
         """Add a posting to the account.
 
         Args:
@@ -178,7 +194,8 @@ class Account:
         asset_currency = posting.units.currency
         cost_currency = posting.cost.currency
         if asset_currency not in self.cost_currency:
-            self.cost_currency[asset_currency] = cost_currency
+            if cost_currency:
+                self.cost_currency[asset_currency] = cost_currency
         elif self.cost_currency[asset_currency] != cost_currency:
             return (
                 f"account {self.account} has inconsistent cost currencies for "
@@ -231,13 +248,13 @@ def calc_gains(entries: Entries, _, config_str: str) -> tuple[list[Directive], l
     Returns:
         A tuple of the modified entries and a list of errors.
     """
-    accounts = {}
+    accounts: dict[str, Account] = {}
 
     config = ast.literal_eval(config_str)
     for acct, acct_config in config.get("accounts", {}).items():
         accounts[acct] = Account(acct, acct_config)
 
-    errors = []
+    errors: list[str] = []
 
     # Collect all of the trading histories
     for transId, entry in enumerate(entries):

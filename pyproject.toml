@@ -5,20 +5,23 @@ description = "This is a template repository for Python projects that use uv for
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
 readme = "README.md"
 keywords = ['python']
-requires-python = ">=3.9,<4.0"
+requires-python = ">=3.12,<4.0"
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+	"typer[all]",
 	"beancount",
+	"beangulp>=0.2.0",
+	"httpx>=0.28.1",
+	"pydantic>=2.12.4",
+	"pydantic-settings",
 	"python-dateutil",
 ]
 
@@ -39,9 +42,10 @@ dev-dependencies = [
     "mkdocs>=1.4.2",
     "mkdocs-material>=8.5.10",
     "mkdocstrings[python]>=0.26.1",
-    "pyright>=1.1.402",
+    "basedpyright>=1.1.402",
     "git-cliff>=2.4.0",
     "setuptools-scm",
+    "rust-just>=1.43.1",
 ]
 
 [build-system]
@@ -57,7 +61,7 @@ packages = ["beancount_blue"]
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py312"
 line-length = 120
 fix = true
 
@@ -65,32 +69,19 @@ fix = true
 select = [
     "E",
     "F",
-    "W",
     "I",
-    "UP",
     "B",
-    "C4",
     "SIM",
-    "ARG",
-    "S",
-    "A",
-    "T10",
-    "PGH",
-    "RUF",
-    "TRY",
 ]
-ignore = [
-    "E501",
-    "E731",
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
 
 [tool.ruff.format]
 preview = true
 
-[tool.pyright]
+[tool.basedpyright]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportExplicitAny = false
+
 include = ["beancount_blue"]
 exclude = ["**/__pycache__"]
 
@@ -100,3 +91,6 @@ skip_empty = true
 [tool.coverage.run]
 branch = true
 source = ["beancount_blue"]
+
+[tool.deptry]
+exclude = ["^.venv/", "^existing_importers/"]

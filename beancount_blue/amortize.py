@@ -4,9 +4,11 @@ This plugin will amortize all transactions in an Expense account in one aggregat
 across multiple months.
 
 Key features:
- * It creates a single transaction each month to adjust the net expense to the amortized amount. It uses the Equity account if it needs to adjust the net expense over the time period.
+ * It creates a single transaction each month to adjust the net expense to the amortized amount. It uses the Equity
+   account if it needs to adjust the net expense over the time period.
  * It tags all adjustments with #amort so they can be filter out all amortization adjustments.
- * If the transaction has a tag, then the adjustments grouped by the tag and have both #amort and the transaction tag. This allows you to divide up different holidays by tag, for example.
+ * If the transaction has a tag, then the adjustments grouped by the tag and have both #amort and the transaction tag.
+   This allows you to divide up different holidays by tag, for example.
  * You can configure the decimals for rounding and number of months.
 
 This is best explained through a demonstration.
@@ -40,24 +42,26 @@ Example book:
       Assets:Bank         -360.00 GBP
 
 What will happen as a result of the above:
- * The first two transactions in January are aggregated (1200 GBP) and then divided up over 12 months, so 100 GBP a month from Jan 2023 to Dec 2023.
+ * The first two transactions in January are aggregated (1200 GBP) and then divided up over 12 months, so 100 GBP a
+   month from Jan 2023 to Dec 2023.
  * The transaction in February is divided up over 12 months, so 30 GBP a month from Feb 2023 to Jan 2024.
 """
 
 import ast
-from collections import defaultdict, namedtuple
+from collections import defaultdict
+from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 
-from beancount.core.amount import Amount
-from beancount.core.data import Entries, Posting, Transaction
-from beancount.core.flags import FLAG_OKAY
+from beancount.api import FLAG_OKAY, Amount, Directive, Posting, Transaction
+from beancount.core.data import Entries
 from dateutil import relativedelta
 
-__plugins__ = ["amortize"]
 
-
-AmortizeError = namedtuple("AmortizeError", "source message entry")
+class AmortizeError(NamedTuple):
+    source: str | None
+    message: str
+    entry: Directive | None
 
 
 def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[AmortizeError]]:
@@ -96,7 +100,7 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
 
     new_entries = entries[:]
 
-    errors = []
+    errors: list[AmortizeError] = []
     for config_acct, acct_config in accounts.items():
         if config_acct.startswith("Expenses:"):
             acct = config_acct.replace("Expenses:", "Equity:Amortization:")
@@ -111,7 +115,7 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
         decimals = acct_config.get("decimals", 2)
 
         # Collect all of the trading histories
-        cashflow = {}
+        cashflow: dict[tuple[str, str], defaultdict[date, Decimal]] = {}
         src = {}
         for _, entry in enumerate(entries):
             if not isinstance(entry, Transaction):
@@ -130,7 +134,7 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                 tag = next(iter(entry.tags)) if entry.tags else ""
                 key = (tag, post.units.currency)
                 if key not in cashflow:
-                    cashflow[key] = defaultdict(Decimal)
+                    cashflow[key] = defaultdict[date, Decimal](Decimal)
                     src[key] = {
                         "lineno": entry.meta["lineno"],
                         "filename": entry.meta["filename"],
@@ -140,8 +144,10 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                 if "amortization_months" in entry.meta:
                     # print(f'Overriding amortization months to {entry.meta["amortization_months"]}')
                     amort_months = int(entry.meta["amortization_months"])
+                quantizer = Decimal("1e-" + str(decimals))
                 for i in range(amort_months):
-                    cashflow_amt = Decimal(round(remaining_amt / (amort_months - i), decimals))
+                    v = (remaining_amt / (amort_months - i)).quantize(quantizer)
+                    cashflow_amt = v
                     cashflow_date = (
                         entry.date + relativedelta.relativedelta(months=i) + relativedelta.relativedelta(day=31)
                     )
@@ -153,13 +159,12 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
             if key[0]:
                 narration = narration + f" for {key[0]}"
             # print(f'Running amorization for {len(amts)} for key {key}, {acct}, {config_acct}')
-            for date, amt in amts.items():
-                # print(f'Date {date} Amount {amt}')
+            for ndate, amt in amts.items():
                 if amt == Decimal(0):
                     continue
                 new_entries.append(
                     Transaction(
-                        date=date,
+                        date=ndate,
                         meta=src[key],
                         flag=FLAG_OKAY,
                         payee="Amortized",

@@ -27,7 +27,7 @@ class TestAmortize(unittest.TestCase):
                 }
         }"""
 
-        entries, errors = amortize(entries, options_map, config)
+        entries, _ = amortize(entries, options_map, config)
 
         amortized_entries, _, _ = loader.load_string("""
             2023-01-15 open Assets:Cash

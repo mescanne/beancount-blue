@@ -52,7 +52,6 @@ def tag(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[Any]]:
 
     new_entries = entries[:]
 
-    errors = []
     for acct, tag in accounts.items():
         for transId, entry in enumerate(new_entries):
             if not isinstance(entry, Transaction):
@@ -61,4 +60,4 @@ def tag(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[Any]]:
                 continue
             new_entries[transId] = entry._replace(tags=frozenset(set(entry.tags).union([tag])))
 
-    return new_entries, errors
+    return new_entries, []
