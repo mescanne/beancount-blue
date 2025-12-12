@@ -126,21 +126,24 @@ def cleanup_string(s: str) -> str:
 
 class StarlingImporter(APIImporter[StarlingData]):
     personal_access_token: str = Field(..., description="Starling Personal Access Token")
-    since_date: date | None = Field(None, description="Fetch transactions since this date.")
-    account_map: dict[UUID, str] = Field(..., description="Map of account UIDs to Beancount account names.")
-    spending_category_map: dict[str, str] = Field(
-        default_factory=dict, description="Map of spending categories to Beancount account names."
+    since_date: str | None = Field(None, description="Fetch transactions since this date.")
+    account_map: str = Field(..., description="Map of account UIDs to Beancount account names.")
+    spending_category_map: str = Field(
+        default="{}", description="Map of spending categories to Beancount account names."
     )
-    faster_payments_map: dict[str, str] = Field(
-        default_factory=dict, description="Map of faster payment identifiers to Beancount account names."
+    faster_payments_map: str = Field(
+        default="{}", description="Map of faster payment identifiers to Beancount account names."
     )
-    user_map: dict[UUID, str] = Field(default_factory=dict, description="Map of user UIDs to names.")
+    user_map: str = Field(default="{}", description="Map of user UIDs to names.")
 
-    @property
-    def name(self) -> str:
+    @classmethod
+    def name(cls) -> str:
         return "starling"
 
     def _get_counter_account(self, item: FeedItem, account_name: str) -> str | None:
+        spending_category_map = json.loads(self.spending_category_map)
+        faster_payments_map = json.loads(self.faster_payments_map)
+
         # Try faster payments
         if (
             item.source in [FeedItemSource.FASTER_PAYMENTS_IN, FeedItemSource.FASTER_PAYMENTS_OUT]
@@ -148,8 +151,8 @@ class StarlingImporter(APIImporter[StarlingData]):
             and item.counterPartySubEntitySubIdentifier
         ):
             acct = f"{item.counterPartySubEntityIdentifier}-{item.counterPartySubEntitySubIdentifier}"
-            if acct in self.faster_payments_map:
-                return self.faster_payments_map[acct]
+            if acct in faster_payments_map:
+                return faster_payments_map[acct]
 
         # Try internal transfers
         if item.source == FeedItemSource.INTERNAL_TRANSFER:
@@ -160,12 +163,12 @@ class StarlingImporter(APIImporter[StarlingData]):
             return "Assets:ZeroSumTransfer"
 
         # Try spending category
-        if item.spendingCategory and item.spendingCategory in self.spending_category_map:
-            return self.spending_category_map[item.spendingCategory]
+        if item.spendingCategory and item.spendingCategory in spending_category_map:
+            return spending_category_map[item.spendingCategory]
 
         # Default category
         if item.spendingCategory:
-            cp = self.spending_category_map.get("DEFAULT", "Expenses:Unknown:<CATEGORY>")
+            cp = spending_category_map.get("DEFAULT", "Expenses:Unknown:<CATEGORY>")
             return cp.replace("<CATEGORY>", cleanup_string(item.spendingCategory))
 
         return None
@@ -183,10 +186,11 @@ class StarlingImporter(APIImporter[StarlingData]):
                 state.accounts[account.accountUid] = account
 
             # Get transactions for each account
-            for account_uid in self.account_map:
+            account_map = {UUID(k): v for k, v in json.loads(self.account_map).items()}
+            for account_uid in account_map:
                 params: dict[str, str] = {}
                 if self.since_date:
-                    params["changesSince"] = self.since_date.isoformat() + "T00:00:00.000Z"
+                    params["changesSince"] = date.fromisoformat(self.since_date).isoformat() + "T00:00:00.000Z"
 
                 feed_response = client.get(f"/api/v2/feed/account/{account_uid}/settled-transactions", params=params)
                 _ = feed_response.raise_for_status()
@@ -205,6 +209,9 @@ class StarlingImporter(APIImporter[StarlingData]):
     def extract(self, state: StarlingData) -> list[ImportedTransaction]:
         transactions: list[ImportedTransaction] = []
 
+        user_map = {UUID(k): v for k, v in json.loads(self.user_map).items()}
+        account_map = {UUID(k): v for k, v in json.loads(self.account_map).items()}
+
         # Create a reverse map for efficient lookup
         feed_item_to_account: dict[UUID, UUID] = {}
         for account_uid, feed_item_uids in state.transactions_by_account.items():
@@ -221,7 +228,7 @@ class StarlingImporter(APIImporter[StarlingData]):
                 log.warning(f"Could not find account for feed item {item.feedItemUid}")
                 continue
 
-            account_name = self.account_map.get(account_uid)
+            account_name = account_map.get(account_uid)
             if not account_name:
                 log.warning(f"Could not find beancount account name for account {account_uid}")
                 continue
@@ -236,7 +243,7 @@ class StarlingImporter(APIImporter[StarlingData]):
             if item.settlementTime and item.transactionTime.date() != item.settlementTime.date():
                 meta["transaction_date"] = item.transactionTime.date().isoformat()
             if item.transactingApplicationUserUid:
-                user = self.user_map.get(item.transactingApplicationUserUid)
+                user = user_map.get(item.transactingApplicationUserUid)
                 if user:
                     meta["user"] = user
             if item.userNote:

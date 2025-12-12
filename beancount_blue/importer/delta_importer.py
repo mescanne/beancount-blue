@@ -31,9 +31,9 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     cache_data: str = Field(..., description="Cache file for API.")
     cache_only: bool = Field(False, description="Only extract from cache, do not update it.")
 
-    @property
+    @classmethod
     @abstractmethod
-    def name(self) -> str:
+    def name(cls) -> str:
         pass
 
     @classmethod
@@ -78,26 +78,6 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         ret = imported_to_beancount(imported_entries, existing=existing)
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
         return ret
-
-
-class MonzoData(BaseModel):
-    pass
-
-
-class Monzo(APIImporter[MonzoData]):
-    @property
-    def name(self) -> str:
-        return "monzo"
-
-    @final
-    @override
-    def refresh(self, state: MonzoData) -> None:
-        return
-
-    @final
-    @override
-    def extract(self, state: MonzoData) -> list[ImportedTransaction]:
-        return []
 
 
 @final
