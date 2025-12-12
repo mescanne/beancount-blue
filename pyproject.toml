@@ -16,13 +16,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-	"typer[all]",
 	"beancount",
 	"beangulp>=0.2.0",
 	"httpx>=0.28.1",
 	"pydantic>=2.12.4",
 	"pydantic-settings",
 	"python-dateutil",
+	"typer>=0.20.0",
 ]
 
 [project.urls]
@@ -30,7 +30,8 @@ Homepage = "https://mescanne.github.io/beancount-blue/"
 Repository = "https://github.com/mescanne/beancount-blue"
 Documentation = "https://mescanne.github.io/beancount-blue/"
 
-
+[project.scripts]
+importer = "beancount_blue.importer.cli:app"
 
 [tool.uv]
 dev-dependencies = [
