@@ -22,7 +22,6 @@ Example book:
     plugin "beancount_blue.amortize" "{
             'accounts': {
                     'Expenses:Renovation': {
-                        'expense_account': 'Expenses:Renovation',
                         'months': 12,
                         'decimals': 2,
                     },
@@ -56,6 +55,8 @@ from typing import Any, NamedTuple
 from beancount.api import FLAG_OKAY, Amount, Directive, Posting, Transaction
 from beancount.core.data import Entries
 from dateutil import relativedelta
+
+__plugins__ = ["amortize"]
 
 
 class AmortizeError(NamedTuple):
@@ -142,7 +143,6 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                 remaining_amt = -1 * post.units.number
                 amort_months = months
                 if "amortization_months" in entry.meta:
-                    # print(f'Overriding amortization months to {entry.meta["amortization_months"]}')
                     amort_months = int(entry.meta["amortization_months"])
                 quantizer = Decimal("1e-" + str(decimals))
                 for i in range(amort_months):
@@ -151,14 +151,13 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                     cashflow_date = (
                         entry.date + relativedelta.relativedelta(months=i) + relativedelta.relativedelta(day=31)
                     )
-                    cashflow[key][cashflow_date] += cashflow_amt
+                    cashflow[key][cashflow_date] += cashflow_amt + (post.units.number if i == 0 else 0)
                     remaining_amt -= cashflow_amt
 
         for key, amts in cashflow.items():
             narration = "Amortization Adjustment"
             if key[0]:
                 narration = narration + f" for {key[0]}"
-            # print(f'Running amorization for {len(amts)} for key {key}, {acct}, {config_acct}')
             for ndate, amt in amts.items():
                 if amt == Decimal(0):
                     continue

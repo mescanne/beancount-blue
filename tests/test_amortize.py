@@ -2,6 +2,7 @@ import unittest
 
 from beancount import loader
 from beancount.core.compare import compare_entries
+from beancount.parser.printer import print_entries
 
 from beancount_blue.amortize import amortize
 
@@ -21,7 +22,6 @@ class TestAmortize(unittest.TestCase):
         config = """{
                 'accounts': {
                         'Expenses:Software': {
-                            'expense_account': 'Expenses:Software',
                             'months': 12,
                         }
                 }
@@ -39,8 +39,8 @@ class TestAmortize(unittest.TestCase):
               Assets:Cash        -1200.00 GBP
 
             2023-01-31 * "Amortized" "Amortization Adjustment" #amort
-              Equity:Amortization:Software  -100.00 GBP
-              Expenses:Software              100.00 GBP
+              Equity:Amortization:Software  1100.00 GBP
+              Expenses:Software             -1100.00 GBP
 
             2023-02-28 * "Amortized" "Amortization Adjustment" #amort
               Equity:Amortization:Software  -100.00 GBP
@@ -89,8 +89,48 @@ class TestAmortize(unittest.TestCase):
         same, removed_entries, added_entries = compare_entries(amortized_entries, entries)
 
         if not same:
-            if removed_entries:
-                print("Entries removed: ", removed_entries)
-            if added_entries:
-                print("Entries added: ", added_entries)
+            print("Expected:")
+            print_entries(amortized_entries)
+            print("Calculated:")
+            print_entries(entries)
+            self.assertTrue(False)
+
+    @loader.load_doc()
+    def no_test_one_month_amortization(self, entries, _, options_map):
+        """
+        option "booking_method" "NONE"
+        plugin "beancount.plugins.auto_accounts"
+
+        2023-01-15 * "Income"
+          Income:Salary  -1000.00 GBP
+          Assets:Bank
+
+        """
+
+        config = """{
+                'accounts': {
+                        'Income:Salary': {
+                            'months': 1,
+                        }
+                }
+        }"""
+
+        entries, _ = amortize(entries, options_map, config)
+
+        amortized_entries, _, _ = loader.load_string("""
+            2023-01-15 open Assets:Bank
+
+            2023-01-15 open Income:Salary
+
+            2023-01-15 * "Income"
+              Income:Salary  -1000.00 GBP
+              Assets:Bank  1000.00 GBP""")
+
+        same, removed_entries, added_entries = compare_entries(amortized_entries, entries)
+
+        if not same:
+            print("Expected:")
+            print_entries(amortized_entries)
+            print("Calculated:")
+            print_entries(entries)
             self.assertTrue(False)
