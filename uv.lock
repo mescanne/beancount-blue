@@ -91,6 +91,7 @@ dependencies = [
     { name = "beancount" },
     { name = "beangulp" },
     { name = "httpx" },
+    { name = "pydanclick" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dateutil" },
@@ -118,6 +119,7 @@ requires-dist = [
     { name = "beancount" },
     { name = "beangulp", specifier = ">=0.2.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydanclick", specifier = ">=0.5.1" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings" },
     { name = "python-dateutil" },
@@ -891,6 +893,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f4/9b/6a4ffb4ed980519da959e1cf3122fc6cb41211daa58dbae1c73c0e519a37/pre_commit-4.5.0.tar.gz", hash = "sha256:dc5a065e932b19fc1d4c653c6939068fe54325af8e741e74e88db4d28a4dd66b", size = 198428, upload-time = "2025-11-22T21:02:42.304Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5d/c4/b2d28e9d2edf4f1713eb3c29307f1a63f3d67cf09bdda29715a36a68921a/pre_commit-4.5.0-py2.py3-none-any.whl", hash = "sha256:25e2ce09595174d9c97860a95609f9f852c0614ba602de3561e267547f2335e1", size = 226429, upload-time = "2025-11-22T21:02:40.836Z" },
+]
+
+[[package]]
+name = "pydanclick"
+version = "0.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/b5/4de7da87d181c8809e3be95a61256a9efa557030b097f50bb6ddeefcd126/pydanclick-0.5.1.tar.gz", hash = "sha256:ddbf2ec8ce3086b0e011bd1b7cd13474de7210d27e031a37c9cec4a76971d518", size = 20911, upload-time = "2025-02-26T07:39:21.603Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/45/a7e33af2da5d4396e974f33ed7ed406e2cc218427cf8fdbe01c9491e51f8/pydanclick-0.5.1-py3-none-any.whl", hash = "sha256:9ef7dd384f0e04c9db3908251db8f5fe7c05d52a8824c659778036cc671f416a", size = 22163, upload-time = "2025-02-26T07:39:19.926Z" },
 ]
 
 [[package]]

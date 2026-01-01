@@ -22,19 +22,13 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 BASE_URL = "https://api.starlingbank.com"
 
 
-class Currency(str, Enum):
-    GBP = "GBP"
-    EUR = "EUR"
-    USD = "USD"
-
-
 class CurrencyAndAmount(BaseModel):
     """
     Standard representation of monetary value in the API.
     'minorUnits' is the smallest unit (e.g., pence for GBP).
     """
 
-    currency: Currency
+    currency: str
     minorUnits: int = Field(..., description="Amount in minor units (e.g., 100 = £1.00)")
 
 
@@ -46,13 +40,38 @@ class AccountV2(BaseModel):
     accountUid: UUID
     accountType: str
     defaultCategory: UUID
-    currency: Currency
+    currency: str
     createdAt: datetime
     name: str
 
 
 class AccountsResponse(BaseModel):
     accounts: list[AccountV2]
+
+
+class SavingsGoals(BaseModel):
+    savingsGoalUid: UUID
+    name: str
+    target: CurrencyAndAmount | None = None
+    totalSaved: CurrencyAndAmount | None = None
+    savedPercentage: int | None = None
+    sortOrder: int
+    state: str
+
+
+class SpendingSpace(BaseModel):
+    name: str
+    balance: CurrencyAndAmount
+    cardAssociationUuid: UUID | None = None
+    sortOrder: int
+    spendingSpaceType: str
+    state: str
+    spaceUid: UUID
+
+
+class SpacesResponse(BaseModel):
+    savingsGoals: list[SavingsGoals]
+    spendingSpaces: list[SpendingSpace]
 
 
 class FeedItemStatus(str, Enum):
@@ -94,10 +113,10 @@ class FeedItem(BaseModel):
     updatedAt: datetime
     transactionTime: datetime
     settlementTime: datetime | None = None
-    source: FeedItemSource
-    status: FeedItemStatus
+    source: str
+    status: str
     counterPartyUid: UUID | None = None
-    counterPartyName: str
+    counterPartyName: str | None = None
     reference: str | None = None
     spendingCategory: str | None = None
     transactingApplicationUserUid: UUID | None = None
@@ -112,11 +131,14 @@ class FeedItemsResponse(BaseModel):
 
 class StarlingData(BaseModel):
     accounts: dict[UUID, AccountV2] = Field(default_factory=dict)
+    account_spending_spaces: dict[UUID, list[SpendingSpace]] = Field(default_factory=dict)
+    account_savings_spaces: dict[UUID, list[SavingsGoals]] = Field(default_factory=dict)
     feed_items: dict[UUID, FeedItem] = Field(default_factory=dict)
-    transactions_by_account: dict[UUID, list[UUID]] = Field(default_factory=dict)
 
 
-def cleanup_string(s: str) -> str:
+def cleanup_string(s: str | None) -> str:
+    if not s:
+        return "Unknown"
     s = s.strip()
     s = s.replace("_", " ")
     s = "".join([w.capitalize() for w in s.split(" ") if not w.isdigit()])
@@ -127,49 +149,49 @@ def cleanup_string(s: str) -> str:
 class StarlingImporter(APIImporter[StarlingData]):
     personal_access_token: str = Field(..., description="Starling Personal Access Token")
     since_date: str | None = Field(None, description="Fetch transactions since this date.")
-    account_map: str = Field(..., description="Map of account UIDs to Beancount account names.")
-    spending_category_map: str = Field(
-        default="{}", description="Map of spending categories to Beancount account names."
+    account_map: dict[str, str] = Field(..., description="Map of account UIDs to Beancount account names.")
+    spending_category_map: dict[str, str] = Field(
+        default_factory=dict, description="Map of spending categories to Beancount account names."
     )
-    faster_payments_map: str = Field(
-        default="{}", description="Map of faster payment identifiers to Beancount account names."
+    faster_payments_map: dict[str, str] = Field(
+        default_factory=dict, description="Map of faster payment identifiers to Beancount account names."
     )
-    user_map: str = Field(default="{}", description="Map of user UIDs to names.")
+    user_map: dict[str, str] = Field(default_factory=dict, description="Map of user UIDs to names.")
 
     @classmethod
     def name(cls) -> str:
         return "starling"
 
     def _get_counter_account(self, item: FeedItem, account_name: str) -> str | None:
-        spending_category_map = json.loads(self.spending_category_map)
-        faster_payments_map = json.loads(self.faster_payments_map)
+        # spending_category_map = self.spending_category_map
+        # faster_payments_map = self.faster_payments_map
 
-        # Try faster payments
-        if (
-            item.source in [FeedItemSource.FASTER_PAYMENTS_IN, FeedItemSource.FASTER_PAYMENTS_OUT]
-            and item.counterPartySubEntityIdentifier
-            and item.counterPartySubEntitySubIdentifier
-        ):
-            acct = f"{item.counterPartySubEntityIdentifier}-{item.counterPartySubEntitySubIdentifier}"
-            if acct in faster_payments_map:
-                return faster_payments_map[acct]
+        # # Try faster payments
+        # if (
+        #     item.source in [FeedItemSource.FASTER_PAYMENTS_IN, FeedItemSource.FASTER_PAYMENTS_OUT]
+        #     and item.counterPartySubEntityIdentifier
+        #     and item.counterPartySubEntitySubIdentifier
+        # ):
+        #     acct = f"{item.counterPartySubEntityIdentifier}-{item.counterPartySubEntitySubIdentifier}"
+        #     if acct in faster_payments_map:
+        #         return faster_payments_map[acct]
 
         # Try internal transfers
         if item.source == FeedItemSource.INTERNAL_TRANSFER:
             return f"{account_name}:{cleanup_string(item.counterPartyName)}"
 
-        # Try On Us Pay Me
-        if item.source == FeedItemSource.ON_US_PAY_ME:
-            return "Assets:ZeroSumTransfer"
+        # # Try On Us Pay Me
+        # if item.source == FeedItemSource.ON_US_PAY_ME:
+        #     return "Assets:ZeroSumTransfer"
 
-        # Try spending category
-        if item.spendingCategory and item.spendingCategory in spending_category_map:
-            return spending_category_map[item.spendingCategory]
+        # # Try spending category
+        # if item.spendingCategory and item.spendingCategory in spending_category_map:
+        #     return spending_category_map[item.spendingCategory]
 
-        # Default category
-        if item.spendingCategory:
-            cp = spending_category_map.get("DEFAULT", "Expenses:Unknown:<CATEGORY>")
-            return cp.replace("<CATEGORY>", cleanup_string(item.spendingCategory))
+        # # Default category
+        # if item.spendingCategory:
+        #     cp = spending_category_map.get("DEFAULT", "Expenses:Unknown:<CATEGORY>")
+        #     return cp.replace("<CATEGORY>", cleanup_string(item.spendingCategory))
 
         return None
 
@@ -185,53 +207,73 @@ class StarlingImporter(APIImporter[StarlingData]):
             for account in accounts:
                 state.accounts[account.accountUid] = account
 
-            # Get transactions for each account
-            account_map = {UUID(k): v for k, v in json.loads(self.account_map).items()}
-            for account_uid in account_map:
-                params: dict[str, str] = {}
-                if self.since_date:
-                    params["changesSince"] = date.fromisoformat(self.since_date).isoformat() + "T00:00:00.000Z"
+                # Get spaces
+                space_response = client.get(f"/api/v2/account/{account.accountUid}/spaces")
+                _ = space_response.raise_for_status()
+                spaces = SpacesResponse.model_validate(space_response.json())
+                state.account_spending_spaces[account.accountUid] = spaces.spendingSpaces
+                state.account_savings_spaces[account.accountUid] = spaces.savingsGoals
 
-                feed_response = client.get(f"/api/v2/feed/account/{account_uid}/settled-transactions", params=params)
-                _ = feed_response.raise_for_status()
-                feed_items = FeedItemsResponse.model_validate(feed_response.json()).feedItems
+                # Get list of categories
+                categories = (
+                    [account.defaultCategory]
+                    + list(s.spaceUid for s in state.account_spending_spaces[account.accountUid])
+                    + list(s.savingsGoalUid for s in state.account_savings_spaces[account.accountUid])
+                )
 
-                if account_uid not in state.transactions_by_account:
-                    state.transactions_by_account[account_uid] = []
+                # Get feed items for default category and all spaces
+                for category_uid in categories:
+                    params: dict[str, str] = {}
+                    if self.since_date:
+                        params["changesSince"] = date.fromisoformat(self.since_date).isoformat() + "T00:00:00.000Z"
+                    else:
+                        params["changesSince"] = "1970-01-01T00:00:00.000Z"
 
-                for item in feed_items:
-                    state.feed_items[item.feedItemUid] = item
-                    if item.feedItemUid not in state.transactions_by_account[account_uid]:
-                        state.transactions_by_account[account_uid].append(item.feedItemUid)
+                    feed_response = client.get(
+                        f"/api/v2/feed/account/{account.accountUid}/category/{category_uid}",
+                        params=params,
+                        timeout=30,
+                    )
+                    _ = feed_response.raise_for_status()
+                    feed_items = FeedItemsResponse.model_validate(feed_response.json()).feedItems
+
+                    for item in feed_items:
+                        state.feed_items[item.feedItemUid] = item
 
     @final
     @override
     def extract(self, state: StarlingData) -> list[ImportedTransaction]:
         transactions: list[ImportedTransaction] = []
 
-        user_map = {UUID(k): v for k, v in json.loads(self.user_map).items()}
-        account_map = {UUID(k): v for k, v in json.loads(self.account_map).items()}
+        # TODO: Friendly mapping for import process
+        user_map = {UUID(k): v for k, v in self.user_map.items()}
+        # account_map = {UUID(k): v for k, v in self.account_map.items()}
 
-        # Create a reverse map for efficient lookup
-        feed_item_to_account: dict[UUID, UUID] = {}
-        for account_uid, feed_item_uids in state.transactions_by_account.items():
-            for feed_item_uid in feed_item_uids:
-                feed_item_to_account[feed_item_uid] = account_uid
+        category_map: dict[UUID, str] = {}
+        for accountUid, account in state.accounts.items():
+            category_map[account.defaultCategory] = account.name
+            for space in state.account_spending_spaces[accountUid]:
+                category_map[space.spaceUid] = account.name + ":" + cleanup_string(space.name)
+            for space in state.account_savings_spaces[accountUid]:
+                category_map[space.savingsGoalUid] = account.name + ":" + cleanup_string(space.name)
 
         for item in state.feed_items.values():
             amount = Decimal(item.amount.minorUnits) / 100
             if item.direction == Direction.OUT:
                 amount = -amount
 
-            account_uid = feed_item_to_account.get(item.feedItemUid)
-            if not account_uid:
-                log.warning(f"Could not find account for feed item {item.feedItemUid}")
+            account_name = category_map.get(item.categoryUid)
+            if not account_name:
+                log.warning(f"Could not find beancount account name for account {item.categoryUid}")
                 continue
 
-            account_name = account_map.get(account_uid)
-            if not account_name:
-                log.warning(f"Could not find beancount account name for account {account_uid}")
-                continue
+            # Zero amount for declined, reversed, refunded
+            if (
+                item.status == FeedItemStatus.DECLINED
+                or item.status == FeedItemStatus.REVERSED
+                or item.status == FeedItemStatus.REFUNDED
+            ):
+                amount = Decimal(0)
 
             counter_account = self._get_counter_account(item, account_name)
 
@@ -255,7 +297,7 @@ class StarlingImporter(APIImporter[StarlingData]):
                     date=item.settlementTime.date() if item.settlementTime else item.transactionTime.date(),
                     settled=item.status == FeedItemStatus.SETTLED,
                     amount=amount,
-                    currency=item.amount.currency.value,
+                    currency=item.amount.currency,
                     account=account_name,
                     counter_account=counter_account,
                     narration=f"{item.counterPartyName} {item.reference or ''}".strip(),

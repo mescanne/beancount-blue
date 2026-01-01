@@ -1,13 +1,13 @@
-import inspect
-import io
+import json
 import logging
-from typing import Any, Type
+from pathlib import Path
+from typing import Annotated, Any, Type
 
 import typer
-from beancount.parser.printer import print_entry  # pyright: ignore[reportUnknownVariableType]
-from typer import Option
+from beancount.api import print_entries  # pyright: ignore[reportUnknownVariableType]
+from pydanclick import from_pydantic
 
-from beancount_blue.importer.delta_importer import APIImporter
+from beancount_blue.importer.delta_importer import APIImporter, ImportConfig
 from beancount_blue.importer.monzo import MonzoImporter
 from beancount_blue.importer.starling_importer import StarlingImporter
 
@@ -15,53 +15,114 @@ log = logging.getLogger(__name__)
 
 app = typer.Typer(
     pretty_exceptions_enable=False,
+    rich_markup_mode=None,
+    no_args_is_help=True,
     help="Beancount Blue Importers CLI. Use to interact with different API importers.",
 )
 
-importers: list[Type[APIImporter[Any]]] = [StarlingImporter, MonzoImporter]
+
+def load_config(path: Path) -> dict[str, Any] | None:
+    if path.suffix in (".yaml", ".yml"):
+        import yaml
+
+        with path.open("r") as f:
+            return yaml.safe_load(f)  # type: ignore
+    elif path.suffix == ".toml":
+        try:
+            import tomllib
+
+            with path.open("rb") as f:
+                return tomllib.load(f)
+        except ImportError:
+            import toml  # type: ignore
+
+            with path.open("r") as f:
+                return toml.load(f)
+    else:
+        with path.open("r") as f:
+            return json.load(f)  # type: ignore
 
 
-def run_importer(importer: APIImporter[Any]) -> None:
-    entries = importer.beancount_load()
-    string_io = io.StringIO()
-    for entry in entries:
-        print_entry(entry, file=string_io)
-    print(string_io.getvalue())
+def config_importer(importer_cls: Type[APIImporter[Any]]):
+    importer_app = typer.Typer(
+        pretty_exceptions_enable=False,
+        rich_markup_mode=None,
+        no_args_is_help=True,
+        help=f"Commands for the {importer_cls.name()} importer.",
+    )
 
+    state: dict[str, Any] = {}
 
-def create_command(importer_cls: Type[APIImporter[Any]]) -> Any:
-    parameters: list[inspect.Parameter] = []
-    for name, field in importer_cls.model_fields.items():
-        default = ... if field.is_required() else field.default
-        parameter = inspect.Parameter(
-            name,
-            inspect.Parameter.KEYWORD_ONLY,
-            default=Option(default, help=field.description),
-            annotation=field.annotation,
-        )
-        parameters.append(parameter)
+    @importer_app.callback()
+    def cb(  # pyright: ignore[reportUnusedFunction]
+        ctx: typer.Context,
+        config: Annotated[
+            Path,
+            typer.Option(
+                exists=True,
+                file_okay=True,
+                dir_okay=False,
+                readable=True,
+                resolve_path=True,
+                help="Path to configuration file.",
+            ),
+        ],
+        cache_data: Annotated[
+            Path,
+            typer.Option(
+                exists=False,
+                file_okay=True,
+                dir_okay=False,
+                readable=True,
+                resolve_path=True,
+                help="Path to cache data file.",
+            ),
+        ]
+        | None = None,
+    ) -> None:
+        data = load_config(config)
+        if not data:
+            print(f"Failed to load configuration from {config}.")
+            raise typer.Exit(code=1)
 
-    signature = inspect.Signature(parameters)
+        ctx.obj["importer"] = importer_cls(**data)
+        ctx.obj["cache_data"] = cache_data
 
-    def command(**kwargs: Any) -> None:
-        importer = importer_cls(**kwargs)
-        run_importer(importer)
+    @importer_app.command("sync")
+    def sync(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
+        log.info("Syncing")
+        ctx.obj["importer"].load_data(ctx.obj["cache_data"], False)
 
-    command.__signature__ = signature  # type: ignore
-    return command
+    @importer_app.command("dump")
+    def dump(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
+        print(ctx.obj["importer"].load_data(ctx.obj["cache_data"], True).model_dump_json(indent=4))
 
+    @importer_app.command("beancount")
+    def beancount(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
+        d = ctx.obj["importer"].beancount_load(state["cache_data"], True)
+        print_entries(d)
 
-for importer_cls in importers:
-    importer_app = typer.Typer(pretty_exceptions_enable=False, help=f"Commands for the {importer_cls.name()} importer.")
-    importer_app.command("run")(create_command(importer_cls))
+    @importer_app.command("transactions")
+    def transactions(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
+        d = ctx.obj["importer"].load_data(state["cache_data"], True)
+        print(ctx.obj["importer"].extract(d))
+
+    # TODO: Add beancount dump, other dump. Summary statistics?
     app.add_typer(importer_app, name=importer_cls.name())
 
 
+for importer_cls in [StarlingImporter, MonzoImporter]:
+    config_importer(importer_cls)
+
+
 @app.callback()
-def main(ctx: typer.Context):
+@from_pydantic(ImportConfig)
+def main(ctx: typer.Context, config: ImportConfig = from_pydantic(ImportConfig)):
     """
     Beancount Blue Importers CLI.
     """
+    ctx.obj = {}
+    ctx.obj["config"] = config
     pass
 
 

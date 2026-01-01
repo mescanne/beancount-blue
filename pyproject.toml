@@ -19,6 +19,7 @@ dependencies = [
 	"beancount",
 	"beangulp>=0.2.0",
 	"httpx>=0.28.1",
+	"pydanclick>=0.5.1",
 	"pydantic>=2.12.4",
 	"pydantic-settings",
 	"python-dateutil",

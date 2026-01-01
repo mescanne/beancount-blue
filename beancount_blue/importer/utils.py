@@ -18,6 +18,8 @@ def load[T: BaseModel](dbfile: str, model: type[T], skip_save: bool = False, max
     """DocString."""
     data: T
 
+    log.info("Using model: %s", model)
+
     try:
         path = Path(dbfile)
 
