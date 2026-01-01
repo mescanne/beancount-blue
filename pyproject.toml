@@ -23,7 +23,7 @@ dependencies = [
 	"pydantic>=2.12.4",
 	"pydantic-settings",
 	"python-dateutil",
-	"typer>=0.20.0",
+	"tyro>=1.0.3",
 ]
 
 [project.urls]

@@ -22,6 +22,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 class ImportConfig(BaseModel):
     min_date: date | None = None
+    account_map: dict[str, str] | None = None
     cache_only: bool = False
     cache_data: str | None = None
 
@@ -70,17 +71,38 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         if config.cache_data:
             with load(config.cache_data, api_data, skip_save=config.cache_only) as data:
                 if not config.cache_only:
+                    log.info("Refreshing data from API, Cache only is %s", config.cache_only)
                     self.refresh(data)
                 return data
         else:
+            if config.cache_only:
+                log.warning("No cache data path provided, but cache_only is set to True. Ignoring cache_only.")
             data = api_data()
             self.refresh(data)
             return data
+
+    @staticmethod
+    def filter(data: list[ImportedTransaction], config: ImportConfig) -> list[ImportedTransaction]:
+        """Filter imported transactions based on config.
+
+        data: List of imported transactions.
+        config: Configuration object.
+        """
+        if config.min_date:
+            data = [e for e in data if e.date >= config.min_date]
+        if config.account_map:
+            for e in data:
+                if e.account in config.account_map:
+                    e.account = config.account_map[e.account]
+                if e.counter_account in config.account_map:
+                    e.counter_account = config.account_map[e.counter_account]
+        return data
 
     @final
     def beancount_load(self, config: ImportConfig, existing: Entries | None = None) -> Entries:
         data = self.load_data(config)
         imported_entries = self.extract(data)
+        imported_entries = self.filter(imported_entries, config)
         ret = imported_to_beancount(imported_entries, existing=existing)
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
         return ret
