@@ -20,10 +20,13 @@
     - [ ] Review documentation completeness for core plugins
 - [ ] Task: Conductor - User Manual Verification 'Gap Identification and Reporting' (Protocol in workflow.md)
 
-## Phase 3: Recommendation and Finalization
+## Phase 3: Recommendation, Implementation and Finalization
 - [ ] Task: Formulate Improvement Plan
-    - [ ] Suggest specific tests to be added
     - [ ] Propose enhancements to CI/CD pipeline
+- [ ] Task: Implement Missing Tests for amortize.py
+    - [ ] Add tests to cover edge cases and bring coverage >80%
+- [ ] Task: Implement Basic Tests for Importer Modules
+    - [ ] Add initial structural unit tests for the core importers to verify behavior
 - [ ] Task: Final Track Summary
-    - [ ] Document findings in a summary report
+    - [ ] Document findings and coverage improvements in a summary report
 - [ ] Task: Conductor - User Manual Verification 'Recommendation and Finalization' (Protocol in workflow.md)

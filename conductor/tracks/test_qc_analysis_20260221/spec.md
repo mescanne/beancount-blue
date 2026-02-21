@@ -8,6 +8,7 @@ Perform a thorough evaluation of the current testing infrastructure and code qua
 - Evaluate test coverage across all modules.
 - Review linting and type-checking configurations and results.
 - Identify areas with low coverage or quality issues.
+- **Implement missing unit and integration tests to improve coverage and behavior guarantees.**
 - Propose improvements for testing and CI/CD integration.
 
 ## Out of Scope
