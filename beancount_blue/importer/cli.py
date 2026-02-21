@@ -1,16 +1,17 @@
+import argparse
 import json
 import logging
-from dataclasses import dataclass
+import sys
 from pathlib import Path
 from typing import Annotated, Any, Union
 
-import tyro
+import yaml
 from beancount.api import print_entries  # pyright: ignore[reportUnknownVariableType]
-from tyro.conf import OmitArgPrefixes, OmitSubcommandPrefixes
+from pydantic import Field, TypeAdapter
 
-from beancount_blue.importer.delta_importer import APIImporter, ImportConfig
 from beancount_blue.importer.monzo import MonzoImporter
 from beancount_blue.importer.starling_importer import StarlingImporter
+from beancount_blue.importer.truelayer import TrueLayerImporter
 
 log = logging.getLogger(__name__)
 
@@ -22,125 +23,76 @@ def load_config(path: Path) -> dict[str, Any] | None:
         with path.open("r") as f:
             return yaml.safe_load(f)  # type: ignore
     elif path.suffix == ".toml":
-        try:
-            import tomllib
+        import tomllib
 
-            with path.open("rb") as f:
-                return tomllib.load(f)
-        except ImportError:
-            import toml  # type: ignore
-
-            with path.open("r") as f:
-                return toml.load(f)
+        with path.open("rb") as f:
+            return tomllib.load(f)
     else:
         with path.open("r") as f:
             return json.load(f)  # type: ignore
 
 
-@dataclass
-class Sync:
-    """Sync data from API."""
-
-    def run(self, importer: APIImporter[Any], config: ImportConfig) -> None:
-        log.info("Syncing")
-        config.cache_only = False
-        importer.load_data(config)
-
-
-@dataclass
-class Dump:
-    """Dump data to JSON."""
-
-    def run(self, importer: APIImporter[Any], config: ImportConfig) -> None:
-        config.cache_only = True
-        print(importer.load_data(config).model_dump_json(indent=4))
-
-
-@dataclass
-class Beancount:
-    """Generate Beancount entries."""
-
-    def run(self, importer: APIImporter[Any], config: ImportConfig) -> None:
-        config.cache_only = True
-        d = importer.beancount_load(config)
-        print_entries(d)
-
-
-@dataclass
-class Transactions:
-    """Extract transactions."""
-
-    def run(self, importer: APIImporter[Any], config: ImportConfig) -> None:
-        config.cache_only = True
-        d = importer.load_data(config)
-        print(importer.extract(d))
-
-
-Action = Union[Sync, Dump, Beancount, Transactions]
-
-
-@dataclass
-class ImporterContext:
-    config: Annotated[
-        Path,
-        tyro.conf.arg(
-            help="Path to configuration file.",
-        ),
-    ]
-    action: Action
-    cache_data: Annotated[
-        Path | None,
-        tyro.conf.arg(
-            help="Path to cache data file.",
-        ),
-    ] = None
-
-    def run(self, importer_cls: type[APIImporter[Any]], global_config: ImportConfig) -> None:
-        data = load_config(self.config)
-        if not data:
-            print(f"Failed to load configuration from {self.config}.")
-            raise SystemExit(1)
-
-        importer = importer_cls(**data)
-
-        if self.cache_data:
-            global_config.cache_data = str(self.cache_data)
-
-        self.action.run(importer, global_config)
-
-
-@dataclass
-class StarlingCommand(ImporterContext):
-    """Starling Bank Importer."""
-
-    def execute(self, global_config: ImportConfig) -> None:
-        self.run(StarlingImporter, global_config)
-
-
-@dataclass
-class MonzoCommand(ImporterContext):
-    """Monzo Importer."""
-
-    def execute(self, global_config: ImportConfig) -> None:
-        self.run(MonzoImporter, global_config)
-
-
-@dataclass
-class Cli:
-    """Beancount Blue Importers CLI."""
-
-    config: ImportConfig
-    command: Union[
-        Annotated[StarlingCommand, tyro.conf.subcommand(name="starling")],
-        Annotated[MonzoCommand, tyro.conf.subcommand(name="monzo")],
-    ]
-
-    def main(self) -> None:
-        self.command.execute(self.config)
+Importer = Annotated[Union[MonzoImporter, StarlingImporter, TrueLayerImporter], Field(discriminator="importer_name")]
 
 
 def app():
-    tyro.cli(Cli, config=(OmitArgPrefixes, OmitSubcommandPrefixes)).main()
+    parser = argparse.ArgumentParser(description="My App CLI")
+
+    # Global Arguments
+    parser.add_argument(
+        "--settings", type=Path, default=Path("settings.yaml"), help="Path to the configuration YAML file"
+    )
+
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+
+    # Sub-commands
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Action to perform")
+
+    # Command: run
+    _ = subparsers.add_parser("sync", help="Start the server")
+    _ = subparsers.add_parser("beancount", help="Start the server")
+    _ = subparsers.add_parser("dump", help="Start the server")
+
+    # Command: migrate
+    migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
+    migrate_parser.add_argument("--dry-run", action="store_true", help="Simulate migration without applying")
+
+    args = parser.parse_args()
+
+    # A. Load the YAML (Flat, simple loading)
+    if args.settings.exists():
+        with open(args.settings, "r") as f:
+            yaml_data = yaml.safe_load(f) or {}  # pyright: ignore[reportUnknownVariableType]
+    else:
+        # Decide if this is fatal or if defaults are okay
+        log.warning(f"Warning: Config file '{args.settings}' not found. Using defaults/env vars.")
+        yaml_data = {}
+
+    try:
+        config = TypeAdapter[Importer](Importer).validate_python(yaml_data)
+    except Exception as e:
+        log.error(f"Configuration Error: {e}")
+        sys.exit(1)
+
+    if args.debug:
+        log.debug("!! DEBUG MODE ON !!")
+
+    log.info(f"Loaded Config: {config}")
+
+    if args.command == "sync":
+        config.cache_only = False
+        _ = config.load_data()
+
+    elif args.command == "beancount":
+        config.cache_only = True
+        print_entries(config.beancount_load())
+
+    elif args.command == "dump":
+        config.cache_only = True
+        print(config.load_data().model_dump_json(indent=2))
+
+    else:
+        log.warning("No valid command provided.")
 
 
 if __name__ == "__main__":

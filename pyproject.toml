@@ -16,14 +16,15 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+	"authlib>=1.4.1",
 	"beancount",
 	"beangulp>=0.2.0",
 	"httpx>=0.28.1",
-	"pydanclick>=0.5.1",
 	"pydantic>=2.12.4",
 	"pydantic-settings",
+	"pymonzo>=2.2.1",
 	"python-dateutil",
-	"tyro>=1.0.3",
+	"pyyaml>=6.0.2",
 ]
 
 [project.urls]
@@ -95,4 +96,4 @@ branch = true
 source = ["beancount_blue"]
 
 [tool.deptry]
-exclude = ["^.venv/", "^existing_importers/"]
+exclude = ["^.venv/", "^existing_importers/", "t.py"]

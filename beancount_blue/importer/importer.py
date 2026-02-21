@@ -28,6 +28,7 @@ class ImportedTransaction:
     counter_account: str | None = None
     narration: str | None = None
     payee: str | None = None
+    category: str | None = None
     meta: dict[str, str] = field(default_factory=dict)
 
 
@@ -139,8 +140,9 @@ def imported_to_beancount(
         output_trans.append(new_trans)
 
     log.info("With importing %d transactions, non-zero balances new transactions %d", len(imported), len(output_trans))
-    # log.info("Imported: %s", imported)
-    # log.info("output_trans: %s", output_trans)
+
+    # Sort by date
+    output_trans.sort(key=lambda t: t.date)
 
     # Set of all accounts being updated
     accounts = set([t.account for t in imported] + [t.counter_account for t in imported if t.counter_account])

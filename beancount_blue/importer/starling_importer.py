@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, final, override
+from typing import Any, Literal, final, override
 from uuid import UUID
 
 import httpx
@@ -147,9 +147,11 @@ def cleanup_string(s: str | None) -> str:
 
 
 class StarlingImporter(APIImporter[StarlingData]):
+    importer_name: Literal["starling"]  # pyright: ignore[reportIncompatibleVariableOverride]
+
     personal_access_token: str = Field(..., description="Starling Personal Access Token")
+    # For API access updating
     since_date: str | None = Field(None, description="Fetch transactions since this date.")
-    account_map: dict[str, str] = Field(..., description="Map of account UIDs to Beancount account names.")
     spending_category_map: dict[str, str] = Field(
         default_factory=dict, description="Map of spending categories to Beancount account names."
     )
@@ -157,10 +159,6 @@ class StarlingImporter(APIImporter[StarlingData]):
         default_factory=dict, description="Map of faster payment identifiers to Beancount account names."
     )
     user_map: dict[str, str] = Field(default_factory=dict, description="Map of user UIDs to names.")
-
-    @classmethod
-    def name(cls) -> str:
-        return "starling"
 
     def _get_counter_account(self, item: FeedItem, account_name: str) -> str | None:
         # spending_category_map = self.spending_category_map
@@ -247,25 +245,26 @@ class StarlingImporter(APIImporter[StarlingData]):
 
         # TODO: Friendly mapping for import process
         user_map = {UUID(k): v for k, v in self.user_map.items()}
-        # account_map = {UUID(k): v for k, v in self.account_map.items()}
 
+        accounts: set[UUID] = set()
         category_map: dict[UUID, str] = {}
         for accountUid, account in state.accounts.items():
-            category_map[account.defaultCategory] = account.name
+            category_map[account.defaultCategory] = str(accountUid)
+            accounts.add(account.defaultCategory)
             for space in state.account_spending_spaces[accountUid]:
-                category_map[space.spaceUid] = account.name + ":" + cleanup_string(space.name)
+                category_map[space.spaceUid] = str(accountUid) + ":" + cleanup_string(space.name)
             for space in state.account_savings_spaces[accountUid]:
-                category_map[space.savingsGoalUid] = account.name + ":" + cleanup_string(space.name)
+                category_map[space.savingsGoalUid] = str(accountUid) + ":" + cleanup_string(space.name)
 
         for item in state.feed_items.values():
-            amount = Decimal(item.amount.minorUnits) / 100
-            if item.direction == Direction.OUT:
-                amount = -amount
-
             account_name = category_map.get(item.categoryUid)
             if not account_name:
                 log.warning(f"Could not find beancount account name for account {item.categoryUid}")
                 continue
+
+            amount = Decimal(item.amount.minorUnits) / 100
+            if item.direction == Direction.OUT:
+                amount = -amount
 
             # Zero amount for declined, reversed, refunded
             if (
@@ -275,12 +274,22 @@ class StarlingImporter(APIImporter[StarlingData]):
             ):
                 amount = Decimal(0)
 
-            counter_account = self._get_counter_account(item, account_name)
+            # Skip internal transfers for non-primary accounts
+            if item.source == FeedItemSource.INTERNAL_TRANSFER and item.categoryUid not in accounts:
+                continue
+
+            # Determine counter account for internal transfers
+            counter_account: str | None = None
+            if item.source == FeedItemSource.INTERNAL_TRANSFER and item.counterPartyUid:
+                counter_account = category_map.get(item.counterPartyUid)
+                if not counter_account:
+                    log.warning(f"Could not find counter account name for account {item.counterPartyUid}")
+                    continue
+
+            # counter_account = self._get_counter_account(item, account_name)
 
             meta: dict[str, Any] = {
                 "__source__": json.dumps(item.model_dump_json(), indent=2),
-                "orig_payee": item.counterPartyName,
-                "category": item.spendingCategory,
             }
             if item.settlementTime and item.transactionTime.date() != item.settlementTime.date():
                 meta["transaction_date"] = item.transactionTime.date().isoformat()
@@ -302,6 +311,7 @@ class StarlingImporter(APIImporter[StarlingData]):
                     counter_account=counter_account,
                     narration=f"{item.counterPartyName} {item.reference or ''}".strip(),
                     payee=item.counterPartyName,
+                    category=item.spendingCategory,
                     meta=meta,
                 )
             )

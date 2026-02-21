@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from abc import ABCMeta, abstractmethod
 from datetime import date
 from pathlib import Path
@@ -20,13 +21,6 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
-class ImportConfig(BaseModel):
-    min_date: date | None = None
-    account_map: dict[str, str] | None = None
-    cache_only: bool = False
-    cache_data: str | None = None
-
-
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -37,10 +31,14 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     APIData: The BaseModel containing the API state for incremental refreshes, token, etc.
     """
 
-    @classmethod
-    @abstractmethod
-    def name(cls) -> str:
-        pass
+    # Main type
+    importer_name: str
+
+    # Configure parameters
+    min_date: date | None = None
+    account_map: dict[str, str] | None = None
+    cache_only: bool = False
+    cache_data: str | None = None
 
     @classmethod
     def get_types(cls) -> type[APIData]:
@@ -66,43 +64,52 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         state: BaseModel to extract the transactions from.
         """
 
-    def load_data(self, config: ImportConfig) -> APIData:
+    def load_data(self) -> APIData:
         api_data = self.get_types()
-        if config.cache_data:
-            with load(config.cache_data, api_data, skip_save=config.cache_only) as data:
-                if not config.cache_only:
-                    log.info("Refreshing data from API, Cache only is %s", config.cache_only)
+        if self.cache_data:
+            with load(self.cache_data, api_data, skip_save=self.cache_only) as data:
+                if not self.cache_only:
+                    log.info("Refreshing data from API, Cache only is %s", self.cache_only)
                     self.refresh(data)
                 return data
         else:
-            if config.cache_only:
+            if self.cache_only:
                 log.warning("No cache data path provided, but cache_only is set to True. Ignoring cache_only.")
             data = api_data()
             self.refresh(data)
             return data
 
-    @staticmethod
-    def filter(data: list[ImportedTransaction], config: ImportConfig) -> list[ImportedTransaction]:
+    def filter(self, data: list[ImportedTransaction]) -> list[ImportedTransaction]:
         """Filter imported transactions based on config.
 
         data: List of imported transactions.
         config: Configuration object.
         """
-        if config.min_date:
-            data = [e for e in data if e.date >= config.min_date]
-        if config.account_map:
+        if self.min_date:
+            data = [e for e in data if e.date >= self.min_date]
+        if self.account_map:
+            m = self.account_map
+            sorted_keys = sorted(self.account_map.keys(), key=len, reverse=True)
+            pattern = re.compile("|".join(re.escape(k) for k in sorted_keys))
+
+            def replace_callback(match: re.Match[str]) -> str:
+                return m[match.group(0)]
+
             for e in data:
-                if e.account in config.account_map:
-                    e.account = config.account_map[e.account]
-                if e.counter_account in config.account_map:
-                    e.counter_account = config.account_map[e.counter_account]
+                e.account = pattern.sub(replace_callback, e.account)
+                if e.counter_account:
+                    e.counter_account = pattern.sub(replace_callback, e.counter_account)
+                # if e.account in self.account_map:
+                #    e.account = self.account_map[e.account]
+                # if e.counter_account in self.account_map:
+                #    e.counter_account = self.account_map[e.counter_account]
         return data
 
     @final
-    def beancount_load(self, config: ImportConfig, existing: Entries | None = None) -> Entries:
-        data = self.load_data(config)
+    def beancount_load(self, existing: Entries | None = None) -> Entries:
+        data = self.load_data()
         imported_entries = self.extract(data)
-        imported_entries = self.filter(imported_entries, config)
+        imported_entries = self.filter(imported_entries)
         ret = imported_to_beancount(imported_entries, existing=existing)
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
         return ret
@@ -113,27 +120,25 @@ class BeancountAPIImporter(Importer):  # type: ignore[no-any-unimported]
     def __init__(
         self,
         importer: APIImporter[T],
-        config: ImportConfig,
     ) -> None:
         self.importer = importer
-        self.config = config
 
     @final
     @property
     def name(self) -> str:
-        return self.importer.name() + " API Importer"
+        return self.importer.importer_name + " API Importer"
 
     @final
     @override
     def identify(self, filepath: str) -> bool:
-        log.info("Checking file %s vs %s.txt", Path(filepath).name, self.importer.name())
-        return Path(filepath).name == f"{self.importer.name()}.txt"
+        log.info("Checking file %s vs %s.txt", Path(filepath).name, self.importer.importer_name)
+        return Path(filepath).name == f"{self.importer.importer_name}.txt"
 
     @final
     @override
     def extract(self, filepath: str, existing: Entries | None = None) -> Entries:
-        entries = self.importer.beancount_load(self.config, existing)
-        return [e for e in entries if self.config.min_date is None or e.date >= self.config.min_date]
+        entries = self.importer.beancount_load(existing)
+        return [e for e in entries if self.importer.min_date is None or e.date >= self.importer.min_date]
 
     @final
     @override
