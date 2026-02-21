@@ -113,6 +113,7 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
         months = acct_config.get("months", None)
         if months is None:
             errors.append(AmortizeError(source=None, message=f"no months for account {config_acct}", entry=None))
+            continue
         decimals = acct_config.get("decimals", 2)
 
         # Collect all of the trading histories
