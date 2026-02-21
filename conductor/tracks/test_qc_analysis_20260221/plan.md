@@ -21,7 +21,7 @@
 - [x] Task: Conductor - User Manual Verification 'Gap Identification and Reporting' (Protocol in workflow.md) [b520dbd]
 
 ## Phase 3: Recommendation, Implementation and Finalization
-- [ ] Task: Formulate Improvement Plan
+- [x] Task: Formulate Improvement Plan [e0ba5a5]
     - [ ] Propose enhancements to CI/CD pipeline
 - [ ] Task: Implement Missing Tests for amortize.py
     - [ ] Add tests to cover edge cases and bring coverage >80%
