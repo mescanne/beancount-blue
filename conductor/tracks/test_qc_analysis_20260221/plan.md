@@ -23,7 +23,7 @@
 ## Phase 3: Recommendation, Implementation and Finalization
 - [x] Task: Formulate Improvement Plan [e0ba5a5]
     - [ ] Propose enhancements to CI/CD pipeline
-- [ ] Task: Implement Missing Tests for amortize.py
+- [x] Task: Implement Missing Tests for amortize.py [813abdb]
     - [ ] Add tests to cover edge cases and bring coverage >80%
 - [ ] Task: Implement Basic Tests for Importer Modules
     - [ ] Add initial structural unit tests for the core importers to verify behavior
