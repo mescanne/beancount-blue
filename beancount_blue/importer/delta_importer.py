@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 from abc import ABCMeta, abstractmethod
 from datetime import date
 from pathlib import Path
@@ -89,20 +88,19 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
             data = [e for e in data if e.date >= self.min_date]
         if self.account_map:
             m = self.account_map
-            sorted_keys = sorted(self.account_map.keys(), key=len, reverse=True)
-            pattern = re.compile("|".join(re.escape(k) for k in sorted_keys))
-
-            def replace_callback(match: re.Match[str]) -> str:
-                return m[match.group(0)]
-
+            sorted_keys = sorted(m.keys(), key=len, reverse=True)
             for e in data:
-                e.account = pattern.sub(replace_callback, e.account)
+                for k in sorted_keys:
+                    v = m[k]
+                    if e.account == k or e.account.startswith(k + ":"):
+                        e.account = e.account.replace(k, v, 1)
+                        break
                 if e.counter_account:
-                    e.counter_account = pattern.sub(replace_callback, e.counter_account)
-                # if e.account in self.account_map:
-                #    e.account = self.account_map[e.account]
-                # if e.counter_account in self.account_map:
-                #    e.counter_account = self.account_map[e.counter_account]
+                    for k in sorted_keys:
+                        v = m[k]
+                        if e.counter_account == k or e.counter_account.startswith(k + ":"):
+                            e.counter_account = e.counter_account.replace(k, v, 1)
+                            break
         return data
 
     @final
@@ -148,7 +146,7 @@ class BeancountAPIImporter(Importer):  # type: ignore[no-any-unimported]
     @final
     @override
     def account(self, filepath: str) -> Account:
-        return ""
+        return f"Assets:API:{self.importer.importer_name.capitalize()}"
 
     @final
     @override
@@ -157,5 +155,5 @@ class BeancountAPIImporter(Importer):  # type: ignore[no-any-unimported]
 
     @final
     @override
-    def filename(self, filepath: str) -> None:
-        return None
+    def filename(self, filepath: str) -> str:
+        return Path(filepath).name

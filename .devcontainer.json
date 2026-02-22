@@ -1,0 +1,25 @@
+{
+  "name": "Python & Gemini Conductor Environment",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "features": {
+    "ghcr.io/devcontainers-extra/features/uv:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/marblejenka/devcontainer-feature/gemini-cli:0": {}
+  },
+  "remoteEnv": {
+    "GOOGLE_CLOUD_LOCATION": "${localEnv:GOOGLE_CLOUD_LOCATION}",
+    "GOOGLE_CLOUD_PROJECT": "${localEnv:GOOGLE_CLOUD_PROJECT}"
+  },
+  "postStartCommand": "sudo apt-get update && sudo apt-get install --yes bison flex && git config --global --add safe.directory '/workspaces/*' && make install",
+  "mounts": [
+    {
+        "source": "${localEnv:HOME}/.config/gcloud",
+        "target": "/home/vscode/.config/gcloud",
+        "type": "bind",
+	"readonly": "true"
+    }
+  ]
+}

@@ -32,7 +32,6 @@ class ImportedTransaction:
     meta: dict[str, str] = field(default_factory=dict)
 
 
-# Not sure if this is used.
 def imported_to_beancount(
     imported: list[ImportedTransaction], existing: list[Directive] | None = None
 ) -> list[Directive]:
@@ -55,10 +54,16 @@ def imported_to_beancount(
     for t in existing:
         if not isinstance(t, Transaction):
             continue
+
+        # Collect all unique IDs for this transaction
+        t_ids: set[str] = set()
         for i in t.links:
-            existing_transactions[i].append(t)
+            t_ids.add(i)
         if "id" in t.meta:
-            existing_transactions[t.meta["id"]].append(t)
+            t_ids.add(t.meta["id"])
+
+        for i in t_ids:
+            existing_transactions[i].append(t)
 
     log.info(
         "Importing %d transactions with %d pre-existing and %d pre-existing with IDs, currency %s",
@@ -158,7 +163,7 @@ def imported_to_beancount(
             new_bals_date = min(unsettled_dates)
             log.info("New balance date, based on mix settled/unsettled transactions: %s", new_bals_date)
         else:
-            new_bals_date = max(t.date for t in imported)
+            new_bals_date = max(t.date for t in imported) + datetime.timedelta(days=1)
             log.info("New balance date, based on only settled transactions: %s", new_bals_date)
 
         last_balance_date = _find_last_balance(existing, account)

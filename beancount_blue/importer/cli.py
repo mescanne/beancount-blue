@@ -49,13 +49,9 @@ def app():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Action to perform")
 
     # Command: run
-    _ = subparsers.add_parser("sync", help="Start the server")
-    _ = subparsers.add_parser("beancount", help="Start the server")
-    _ = subparsers.add_parser("dump", help="Start the server")
-
-    # Command: migrate
-    migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
-    migrate_parser.add_argument("--dry-run", action="store_true", help="Simulate migration without applying")
+    _ = subparsers.add_parser("sync", help="Refresh data from the API and save state")
+    _ = subparsers.add_parser("beancount", help="Output imported transactions as Beancount directives")
+    _ = subparsers.add_parser("dump", help="Dump the raw API state as JSON")
 
     args = parser.parse_args()
 
