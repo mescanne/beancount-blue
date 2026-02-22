@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Comprehensive Test Coverage and Quality Control Analysis**
+- [~] **Track: Comprehensive Test Coverage and Quality Control Analysis**
   *Link: [./tracks/test_qc_analysis_20260221/](./tracks/test_qc_analysis_20260221/)*
