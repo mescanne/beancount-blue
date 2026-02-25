@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal, final, override
 
 from authlib.integrations.httpx_client import OAuth2Client, OAuthError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from pymonzo.accounts.resources import AccountsResource
 from pymonzo.accounts.schemas import MonzoAccount
 from pymonzo.attachments.resources import AttachmentsResource
@@ -115,7 +115,7 @@ class CustomMonzoAPI(MonzoAPI):
             client_secret=client_secret,
             token=self.token,
         )
-        log.info("Initializing MonzoAPI with token: %s", self.token)
+        log.info("Initializing MonzoAPI")
         log.info("Token endpoint: %s, api_url: %s", self.token_endpoint, self.api_url)
         log.info("Auth URL: %s", self.authorization_endpoint)
         self.session = OAuth2Client(
@@ -138,7 +138,7 @@ class CustomMonzoAPI(MonzoAPI):
         self.webhooks = WebhooksResource(client=self)
 
     def _update_token(self, token: dict[str, Any], **kwargs: Any) -> None:
-        log.info("Updating token: %s", token)
+        log.info("Updating Monzo access token")
         for k, v in token.items():
             self.token[k] = v
 
@@ -317,12 +317,12 @@ class MonzoImporter(APIImporter[MonzoData]):
 
     units: int = 2
     client_id: str = Field(description="Monzo Client ID")
-    client_secret: str = Field(description="Monzo Client Secret")
+    client_secret: SecretStr = Field(description="Monzo Client Secret")
 
     @final
     @override
     def refresh(self, state: MonzoData) -> None:
-        state.refresh(self.client_id, self.client_secret)
+        state.refresh(self.client_id, self.client_secret.get_secret_value())
 
     @final
     @override

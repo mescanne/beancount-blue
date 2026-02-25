@@ -13,7 +13,7 @@ from typing import Any, Literal, Optional, cast, final, override
 
 import dateutil.parser
 from authlib.integrations.httpx_client import OAuth2Client
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from beancount_blue.importer.delta_importer import APIImporter
 from beancount_blue.importer.importer import ImportedTransaction
@@ -213,9 +213,9 @@ class TrueLayerAPI:
         # We set base_url to "https://api.truelayer.com/data/v1" in __init__.
         # So endpoint should be relative to that, e.g., "accounts".
 
-        r = self.client.get(endpoint, params=params)
-        r.raise_for_status()
-        return r.json().get("results", [])
+        r = self.client.get(endpoint, params=params)  # type: ignore[reportUnknownMemberType, reportUnknownVariableType, reportAttributeAccessIssue]
+        r.raise_for_status()  # type: ignore[reportUnknownMemberType]
+        return r.json().get("results", [])  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
 
     def get_accounts(self) -> list[TrueLayerAccount]:
         data = self._get_results("accounts")
@@ -264,7 +264,7 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
     importer_name: Literal["truelayer"]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     client_id: str = Field(description="Truelayer Client ID")
-    client_secret: str = Field(description="Truelayer Client Secret")
+    client_secret: SecretStr = Field(description="Truelayer Client Secret")
 
     units: int = 2
 
@@ -273,7 +273,7 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
     def refresh(self, state: TrueLayerData) -> None:
         is_first_run = state.token is None
 
-        api = TrueLayerAPI(self.client_id, self.client_secret, state)
+        api = TrueLayerAPI(self.client_id, self.client_secret.get_secret_value(), state)
         api.ensure_authorized()
 
         # 1. Accounts

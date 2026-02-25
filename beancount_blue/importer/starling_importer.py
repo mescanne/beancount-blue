@@ -10,7 +10,7 @@ from typing import Any, Literal, final, override
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from .delta_importer import APIImporter
 from .importer import ImportedTransaction
@@ -149,7 +149,7 @@ def cleanup_string(s: str | None) -> str:
 class StarlingImporter(APIImporter[StarlingData]):
     importer_name: Literal["starling"]  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    personal_access_token: str = Field(..., description="Starling Personal Access Token")
+    personal_access_token: SecretStr = Field(..., description="Starling Personal Access Token")
     # For API access updating
     since_date: str | None = Field(None, description="Fetch transactions since this date.")
     spending_category_map: dict[str, str] = Field(
@@ -196,7 +196,7 @@ class StarlingImporter(APIImporter[StarlingData]):
     @final
     @override
     def refresh(self, state: StarlingData) -> None:
-        headers = {"Authorization": f"Bearer {self.personal_access_token}"}
+        headers = {"Authorization": f"Bearer {self.personal_access_token.get_secret_value()}"}
         with httpx.Client(headers=headers, base_url=BASE_URL) as client:
             # Get accounts
             accounts_response = client.get("/api/v2/accounts")
