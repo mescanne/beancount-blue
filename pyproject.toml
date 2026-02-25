@@ -49,6 +49,7 @@ dev = [
     "mkdocs<1.6.0",
     "mkdocs-material>=9.5.18",
     "mkdocstrings[python]>=0.28.3",
+    "pip-audit>=2.10.0",
 ]
 
 [build-system]
