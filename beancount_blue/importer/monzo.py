@@ -71,7 +71,7 @@ class CustomMonzoAPI(MonzoAPI):
         # Try it out -- if it fails, do it fresh
         monzo_api: CustomMonzoAPI | None = None
         try:
-            monzo_api = CustomMonzoAPI(token_state)
+            monzo_api = CustomMonzoAPI(token_state, client_id, client_secret)
             monzo_api.whoami()
             return monzo_api, False
         except (OAuthError, NoSettingsFile) as e:
@@ -98,7 +98,7 @@ class CustomMonzoAPI(MonzoAPI):
             token_state[k] = v
 
         # Warm up the connection and return it
-        monzo_api = CustomMonzoAPI(token_state)
+        monzo_api = CustomMonzoAPI(token_state, client_id, client_secret)
         monzo_api.whoami()
         log.info(
             "Authenticated: %s, now token %s", monzo_api.whoami().authenticated, token_state.get("access_token", "")
@@ -106,13 +106,13 @@ class CustomMonzoAPI(MonzoAPI):
 
         return monzo_api
 
-    def __init__(self, stateful_token: dict[str, Any]) -> None:  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
+    def __init__(self, stateful_token: dict[str, Any], client_id: str, client_secret: str) -> None:  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
         self.token = stateful_token
         if "access_token" not in self.token:
             raise RuntimeError("No access_token in token state")
         self._settings = PyMonzoSettings(
-            client_id=self.token["client_id"],
-            client_secret="",
+            client_id=client_id,
+            client_secret=client_secret,
             token=self.token,
         )
         log.info("Initializing MonzoAPI with token: %s", self.token)

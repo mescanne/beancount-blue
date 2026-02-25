@@ -271,6 +271,8 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
     @final
     @override
     def refresh(self, state: TrueLayerData) -> None:
+        is_first_run = state.token is None
+
         api = TrueLayerAPI(self.client_id, self.client_secret, state)
         api.ensure_authorized()
 
@@ -312,6 +314,10 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
 
                 aid = account_config.account_id
                 from_date = datetime.datetime.fromtimestamp(account_config.from_date, datetime.timezone.utc)
+                if not is_first_run:
+                    from_date = max(
+                        from_date, datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=89)
+                    )
                 to_date = datetime.datetime.now(datetime.timezone.utc)
 
                 state.raw_transactions[aid] = api.get_transactions(aid, api_type, from_date, to_date)
