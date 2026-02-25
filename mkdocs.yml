@@ -10,6 +10,7 @@ copyright: Maintained by <a href="https://mescanne.com">mescanne</a>.
 nav:
   - Home: index.md
   - Modules: modules.md
+  - Importers: importer.md
 plugins:
   - search
   - mkdocstrings:

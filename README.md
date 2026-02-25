@@ -18,6 +18,12 @@ This collection currently includes the following plugins:
 - **[UK Capital Gains](https://mescanne.github.io/beancount-blue/modules/#beancount_blue.calc_uk_gains)**: A flexible capital gains calculator that can be configured to handle different tax regulations.
 - **[Clear Residual Lots](https://mescanne.github.io/beancount-blue/modules/#beancount_blue.clear_residual_lots)**: Automatically clear out small, leftover lots in investment accounts that can occur when using the `NONE` booking method. This helps keep your books clean and accurate.
 
+## Importers & ML Prediction
+
+This package also includes a native API importer framework for syncing transactions from real-world banks and APIs (Monzo, Starling, and TrueLayer). It features a built-in, dependency-free **Machine Learning Predictor** that leverages a Naive Bayes classifier to automatically learn from your existing Beancount ledger and predict the correct counter-accounts and payees for new transactions.
+
+See the [Importers Documentation](https://mescanne.github.io/beancount-blue/importer/) for detailed instructions on configuring the ML predictor, CLI usage, and specific bank implementations.
+
 ## Installation
 
 To use these plugins, you first need to install this package:

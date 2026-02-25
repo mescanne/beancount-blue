@@ -9,7 +9,7 @@ from typing import TypeVar, final, override
 from beancount.api import Account
 from beancount.core.data import Directive, Entries
 from beangulp.importer import Importer  # pyright: ignore[reportMissingTypeStubs]
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 from .importer import ImportedTransaction, imported_to_beancount
@@ -25,19 +25,54 @@ T = TypeVar("T", bound=BaseModel)
 
 class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     """
-    APIImporter
-    APIImportConfig: The BaseSettings object with the fields for configuring the API importing and runtime behaviour
-    APIData: The BaseModel containing the API state for incremental refreshes, token, etc.
+    Base class for all API Importers.
+
+    This class manages configuration, API state caching, filtering, and machine learning predictions.
+    Subclasses (like MonzoImporter or StarlingImporter) implement the `refresh` and `extract` logic.
     """
 
     # Main type
-    importer_name: str
+    importer_name: str = Field(description="The unique name identifying this importer.")
 
     # Configure parameters
-    min_date: date | None = None
-    account_map: dict[str, str] | None = None
-    cache_only: bool = False
-    cache_data: str | None = None
+    min_date: date | None = Field(None, description="Only extract transactions on or after this date.")
+    account_map: dict[str, str] | None = Field(
+        None, description="Mapping of API account IDs to Beancount account names."
+    )
+    cache_only: bool = Field(
+        False, description="If True, skips the API refresh and only loads data from the local cache."
+    )
+    cache_data: str | None = Field(
+        None, description="File path to the compressed tar.gz file where the API state is cached."
+    )
+
+    # Predictor options
+    auto_predict: bool = Field(False, description="Enable the ML predictor to guess payees and counter_accounts.")
+    predict_ledger_path: str | None = Field(
+        None, description="Path to the main Beancount ledger file used as training data."
+    )
+    predict_model_path: str = Field(
+        "predictor_model.json", description="File path where the trained JSON ML model is stored/cached."
+    )
+    predict_anchor_accounts: list[str] | None = Field(
+        None, description="List of anchor accounts to train on. Defaults to the values in `account_map`."
+    )
+    predict_skip_accounts: list[str] = Field(
+        default_factory=list, description="List of counter-accounts to explicitly ignore when training the ML model."
+    )
+    predict_min_confidence: float = Field(
+        0.5, description="The minimum confidence threshold (0.0 to 1.0) required to apply a prediction."
+    )
+    predict_retrain_days: float | None = Field(
+        7.0,
+        description="Force a retraining of the ML model if it is older than this many days.",
+    )
+
+    @property
+    def anchor_accounts(self) -> list[str]:
+        if self.account_map:
+            return list(self.account_map.values())
+        return []
 
     @classmethod
     def get_types(cls) -> type[APIData]:
@@ -108,6 +143,49 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         data = self.load_data()
         imported_entries = self.extract(data)
         imported_entries = self.filter(imported_entries)
+
+        # ML Prediction logic
+        if self.auto_predict:
+            import time
+
+            from beancount.loader import load_file
+
+            from .predictor import TransactionPredictor
+
+            predictor = TransactionPredictor(Path(self.predict_model_path))
+
+            # Heuristic: Check if we need to retrain
+            retrain = False
+            if self.predict_ledger_path:
+                ledger_path = Path(self.predict_ledger_path)
+                if ledger_path.exists():
+                    model_path = Path(self.predict_model_path)
+                    if not model_path.exists():
+                        log.info("Model missing. Retraining...")
+                        retrain = True
+                    else:
+                        model_mtime = model_path.stat().st_mtime
+                        if ledger_path.stat().st_mtime > model_mtime:
+                            log.info("Ledger is newer than model. Retraining...")
+                            retrain = True
+                        elif self.predict_retrain_days is not None:
+                            age_days = (time.time() - model_mtime) / 86400.0
+                            if age_days > self.predict_retrain_days:
+                                log.info(
+                                    f"Model age ({age_days:.1f} days) exceeds threshold "
+                                    f"({self.predict_retrain_days} days). Retraining..."
+                                )
+                                retrain = True
+
+            if retrain and self.predict_ledger_path:
+                entries, _, _ = load_file(self.predict_ledger_path)
+                anchors = self.predict_anchor_accounts or self.anchor_accounts
+                predictor.train(entries, anchors, self.predict_skip_accounts)
+            else:
+                predictor.load()
+
+            predictor.apply_predictions(imported_entries, min_confidence=self.predict_min_confidence)
+
         ret = imported_to_beancount(imported_entries, existing=existing)
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
         return ret

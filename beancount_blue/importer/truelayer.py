@@ -379,6 +379,7 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
             account=account_id,
             narration=txn.description,
             payee=payee,
+            category=txn.transaction_category,
             meta={
                 "type": "truelayer",
                 "category": txn.transaction_category or "",

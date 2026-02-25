@@ -267,6 +267,7 @@ class MonzoAccountData(BaseModel):
             counter_account=counter_account,
             narration=(t.description if "pot_id" not in t.metadata else "pot movement"),
             payee=metadata.get("orig_payee"),
+            category=metadata.get("category"),
             meta=metadata,
         )
 
