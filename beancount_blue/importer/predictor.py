@@ -3,8 +3,9 @@ import logging
 import math
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from beancount.core.data import Transaction
 
@@ -33,7 +34,7 @@ class NaiveBayesPredictor:
 
     def train(self, docs: list[str], labels: list[str]) -> None:
         self.__init__()  # reset
-        for doc, label in zip(docs, labels, strict=False):
+        for doc, label in zip(docs, labels, strict=True):
             self.classes[label] += 1
             self.total_docs += 1
             words = tokenize(doc)

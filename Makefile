@@ -13,10 +13,11 @@ lint: ## Run code quality tools.
 	@uv lock --locked
 	@echo "🚀 Linting code: Running pre-commit"
 	@uv run pre-commit run -a
-	        @echo "🚀 Checking for obsolete dependencies: Running deptry"
-	        @uv run deptry .
-	        @echo "🚀 Checking for vulnerabilities: Running pip-audit"
-	        @uv run pip-audit
+	@echo "🚀 Checking for obsolete dependencies: Running deptry"
+	@uv run deptry .
+	@echo "🚀 Checking for vulnerabilities: Running pip-audit"
+	@uv run pip-audit
+
 .PHONY: test
 test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"

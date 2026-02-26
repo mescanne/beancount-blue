@@ -136,7 +136,7 @@ def amortize(entries: Entries, _: Any, config_str: str) -> tuple[Entries, list[A
                 tag = next(iter(entry.tags)) if entry.tags else ""
                 key = (tag, post.units.currency)
                 if key not in cashflow:
-                    cashflow[key] = defaultdict[date, Decimal](Decimal)
+                    cashflow[key] = defaultdict(Decimal)
                     src[key] = {
                         "lineno": entry.meta["lineno"],
                         "filename": entry.meta["filename"],

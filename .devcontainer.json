@@ -15,11 +15,6 @@
   },
   "postStartCommand": "sudo apt-get update && sudo apt-get install --yes bison flex && git config --global --add safe.directory '/workspaces/*' && make install",
   "mounts": [
-    {
-        "source": "${localEnv:HOME}/.config/gcloud",
-        "target": "/home/vscode/.config/gcloud",
-        "type": "bind",
-	"readonly": "true"
-    }
+    "source=${localEnv:HOME}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind,ro"
   ]
 }

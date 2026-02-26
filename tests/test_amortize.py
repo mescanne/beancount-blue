@@ -96,7 +96,7 @@ class TestAmortize(unittest.TestCase):
             self.assertTrue(False)
 
     @loader.load_doc()
-    def no_test_one_month_amortization(self, entries, _, options_map):
+    def test_one_month_amortization(self, entries, _, options_map):
         """
         option "booking_method" "NONE"
         plugin "beancount.plugins.auto_accounts"

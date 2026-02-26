@@ -19,4 +19,5 @@ A beancount plugin in Python 3.11+.
 
 # CHECKING CODE
 
-Run `make check` to execute all of the linting, type checking, and linting. This runs fast and so should always pass.
+Run `make check` to execute all of the linting, type checking, testing, and
+dependency checks. This runs fast and so should always pass.
