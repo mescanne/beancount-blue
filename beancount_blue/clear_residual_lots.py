@@ -59,7 +59,7 @@ def clear_residual_lots(entries: Entries, _: Any, config_str: str) -> tuple[Entr
         return entries, []
 
     # Calculate all residual inventory across closed accounts
-    residual_inventories = defaultdict(inventory.Inventory)
+    residual_inventories: defaultdict[str, inventory.Inventory] = defaultdict(inventory.Inventory)
     for entry in entries:
         if isinstance(entry, data.Transaction):
             for posting in entry.postings:
@@ -67,13 +67,13 @@ def clear_residual_lots(entries: Entries, _: Any, config_str: str) -> tuple[Entr
                     residual_inventories[posting.account].add_position(posting)
 
     # Generate balancing transactions for accounts with residuals.
-    balancing_txns = {}
+    balancing_txns: dict[str, data.Transaction] = {}
     for account, residual_inv in residual_inventories.items():
         # Only process accounts that have a non-empty inventory.
         if residual_inv.is_empty():
             continue
 
-        postings = []
+        postings: list[data.Posting] = []
         # Create postings to cancel out every lot in the residual inventory.
         for pos in residual_inv.get_positions():
             if pos.units.number == ZERO:

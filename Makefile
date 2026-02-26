@@ -5,13 +5,18 @@ install: ## Install the virtual environment and install the pre-commit hooks
 	@uv run pre-commit install
 
 .PHONY: check
-check: ## Run code quality tools.
+check: lint test docs-test ## Run all CI/CD tests
+
+.PHONY: lint
+lint: ## Run code quality tools.
 	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
 	@uv lock --locked
 	@echo "🚀 Linting code: Running pre-commit"
 	@uv run pre-commit run -a
 	@echo "🚀 Checking for obsolete dependencies: Running deptry"
 	@uv run deptry .
+	@echo "🚀 Checking for vulnerabilities: Running pip-audit"
+	@uv run pip-audit
 
 .PHONY: test
 test: ## Test the code with pytest

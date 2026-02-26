@@ -5,21 +5,26 @@ description = "This is a template repository for Python projects that use uv for
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
 readme = "README.md"
 keywords = ['python']
-requires-python = ">=3.9,<4.0"
+requires-python = ">=3.12,<4.0"
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+	"authlib>=1.4.1",
 	"beancount",
+	"beangulp>=0.2.0",
+	"httpx>=0.28.1",
+	"pydantic>=2.12.4",
+	"pydantic-settings",
+	"pymonzo>=2.2.1",
 	"python-dateutil",
+	"pyyaml>=6.0.2",
 ]
 
 [project.urls]
@@ -27,21 +32,24 @@ Homepage = "https://mescanne.github.io/beancount-blue/"
 Repository = "https://github.com/mescanne/beancount-blue"
 Documentation = "https://mescanne.github.io/beancount-blue/"
 
+[project.scripts]
+importer = "beancount_blue.importer.cli:app"
 
-
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=7.2.0",
     "pre-commit>=2.20.0",
     "deptry>=0.20.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.12.0",
-    "mkdocs>=1.4.2",
-    "mkdocs-material>=8.5.10",
-    "mkdocstrings[python]>=0.26.1",
-    "pyright>=1.1.402",
+    "basedpyright>=1.1.402",
     "git-cliff>=2.4.0",
     "setuptools-scm",
+    "rust-just>=1.43.1",
+    "mkdocs<1.6.0",
+    "mkdocs-material>=9.5.18",
+    "mkdocstrings[python]>=0.28.3",
+    "pip-audit>=2.10.0",
 ]
 
 [build-system]
@@ -57,7 +65,7 @@ packages = ["beancount_blue"]
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py312"
 line-length = 120
 fix = true
 
@@ -65,32 +73,27 @@ fix = true
 select = [
     "E",
     "F",
-    "W",
     "I",
-    "UP",
     "B",
-    "C4",
     "SIM",
-    "ARG",
-    "S",
-    "A",
-    "T10",
-    "PGH",
-    "RUF",
-    "TRY",
+    "UP",  # pyupgrade (modernize python syntax)
+    "S",   # flake8-bandit (security checks)
+    "TRY", # tryceratops (exception handling antipatterns)
+    "W",   # pycodestyle warnings
 ]
-ignore = [
-    "E501",
-    "E731",
-]
+ignore = ["TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "S105", "S106"]
 
 [tool.ruff.format]
 preview = true
 
-[tool.pyright]
+[tool.basedpyright]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportExplicitAny = false
+
 include = ["beancount_blue"]
 exclude = ["**/__pycache__"]
 
@@ -100,3 +103,6 @@ skip_empty = true
 [tool.coverage.run]
 branch = true
 source = ["beancount_blue"]
+
+[tool.deptry]
+exclude = ["^.venv/", "^existing_importers/", "t.py"]

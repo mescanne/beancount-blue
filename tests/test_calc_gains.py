@@ -40,7 +40,7 @@ class TestCalcUkGains(unittest.TestCase):
                 }
         }"""
 
-        gain_transactions, errors = calc_gains(entries, options_map, config)
+        gain_transactions, _ = calc_gains(entries, options_map, config)
 
         new_entries, _, _ = loader.load_string('''
             2023-01-25 open Assets:Test1
