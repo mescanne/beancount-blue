@@ -29,7 +29,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Annotated, Any, Union
+from typing import Annotated, Any
 
 import yaml
 from beancount.api import print_entries  # pyright: ignore[reportUnknownVariableType]
@@ -58,7 +58,7 @@ def load_config(path: Path) -> dict[str, Any] | None:
             return json.load(f)  # type: ignore
 
 
-Importer = Annotated[Union[MonzoImporter, StarlingImporter, TrueLayerImporter], Field(discriminator="importer_name")]
+Importer = Annotated[MonzoImporter | StarlingImporter | TrueLayerImporter, Field(discriminator="importer_name")]
 
 
 def app():
@@ -87,7 +87,7 @@ def app():
 
     # A. Load the YAML (Flat, simple loading)
     if args.settings.exists():
-        with open(args.settings, "r") as f:
+        with open(args.settings) as f:
             yaml_data = yaml.safe_load(f) or {}  # pyright: ignore[reportUnknownVariableType]
     else:
         # Decide if this is fatal or if defaults are okay
@@ -96,8 +96,8 @@ def app():
 
     try:
         config = TypeAdapter[Importer](Importer).validate_python(yaml_data)
-    except Exception as e:
-        log.error(f"Configuration Error: {e}")
+    except Exception:
+        log.exception("Configuration Error")
         sys.exit(1)
 
     if args.debug:

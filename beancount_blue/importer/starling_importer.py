@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal, final, override
 from uuid import UUID
 
@@ -74,7 +73,7 @@ class SpacesResponse(BaseModel):
     spendingSpaces: list[SpendingSpace]
 
 
-class FeedItemStatus(str, Enum):
+class FeedItemStatus(StrEnum):
     UPCOMING = "UPCOMING"
     PENDING = "PENDING"
     REVERSED = "REVERSED"
@@ -85,7 +84,7 @@ class FeedItemStatus(str, Enum):
     ACCOUNT_CHECK = "ACCOUNT_CHECK"
 
 
-class FeedItemSource(str, Enum):
+class FeedItemSource(StrEnum):
     FASTER_PAYMENTS_IN = "FASTER_PAYMENTS_IN"
     FASTER_PAYMENTS_OUT = "FASTER_PAYMENTS_OUT"
     FASTER_PAYMENTS_REVERSAL = "FASTER_PAYMENTS_REVERSAL"
@@ -99,7 +98,7 @@ class FeedItemSource(str, Enum):
     ON_US_PAY_ME = "ON_US_PAY_ME"
 
 
-class Direction(str, Enum):
+class Direction(StrEnum):
     IN = "IN"
     OUT = "OUT"
 
@@ -289,7 +288,7 @@ class StarlingImporter(APIImporter[StarlingData]):
             # counter_account = self._get_counter_account(item, account_name)
 
             meta: dict[str, Any] = {
-                "__source__": json.dumps(item.model_dump_json(), indent=2),
+                "__source__": item.model_dump_json(indent=2),
             }
             if item.settlementTime and item.transactionTime.date() != item.settlementTime.date():
                 meta["transaction_date"] = item.transactionTime.date().isoformat()

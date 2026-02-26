@@ -46,7 +46,7 @@ def imported_to_beancount(
     # Check currency are all the same
     currencies = {str(t.currency) for t in imported}
     if len(currencies) != 1:
-        raise Exception(f"invalid mixed currencies, found: {', '.join(currencies)}")
+        raise ValueError("invalid mixed currencies")
     currency = next(iter(currencies))
 
     # Index existing transactions by links and meta 'id' key
@@ -201,7 +201,7 @@ def _generate_balance_entries(entries: list[Directive], account: str, asof_date:
     for ccy, bal in balance.items():
         output_trans.append(
             Balance(
-                new_metadata("somepath", 100),
+                new_metadata("unknown", 100),
                 asof_date,
                 account,
                 Amount(bal, ccy),

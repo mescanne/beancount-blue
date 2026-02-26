@@ -9,7 +9,7 @@ import sys
 import urllib.parse
 import webbrowser
 from decimal import Decimal
-from typing import Any, Literal, Optional, cast, final, override
+from typing import Any, Literal, cast, final, override
 
 import dateutil.parser
 from authlib.integrations.httpx_client import OAuth2Client
@@ -79,7 +79,7 @@ class TrueLayerAccountConfig(BaseModel):
     name: str
     liability: bool
     enabled: bool = True
-    beancount_account: Optional[str] = None
+    beancount_account: str | None = None
     from_date: float = Field(default_factory=lambda: datetime.datetime.now().timestamp() - 86400 * 90)
 
 
@@ -99,13 +99,17 @@ class TrueLayerData(BaseModel):
     raw_balances: dict[str, TrueLayerBalance] = {}
 
 
+class TrueLayerAuthError(Exception):
+    pass
+
+
 class TrueLayerAPI:
     ADDRESS = "127.0.0.1"
     PORT = 3015
     REDIRECT_URI = f"http://{ADDRESS}:{PORT}/callback"
     AUTH_URL = "https://auth.truelayer.com"
     API_URL = "https://api.truelayer.com/data/v1"
-    TOKEN_ENDPOINT = "https://auth.truelayer.com/connect/token"
+    TOKEN_ENDPOINT = "https://auth.truelayer.com/connect/token"  # noqa: S105
 
     def __init__(self, client_id: str, client_secret: str, state: TrueLayerData):
         self.client_id = client_id
@@ -149,7 +153,7 @@ class TrueLayerAPI:
         # 2. Capture Code via Local Server
         code = self._capture_auth_code(authorization_url, state_str)
         if not code:
-            raise RuntimeError("Failed to obtain authorization code.")
+            raise TrueLayerAuthError("Failed to obtain authorization code.")
 
         # 3. Exchange Code for Token
         token = cast(
@@ -313,12 +317,10 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
                     continue
 
                 aid = account_config.account_id
-                from_date = datetime.datetime.fromtimestamp(account_config.from_date, datetime.timezone.utc)
+                from_date = datetime.datetime.fromtimestamp(account_config.from_date, datetime.UTC)
                 if not is_first_run:
-                    from_date = max(
-                        from_date, datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=89)
-                    )
-                to_date = datetime.datetime.now(datetime.timezone.utc)
+                    from_date = max(from_date, datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=89))
+                to_date = datetime.datetime.now(datetime.UTC)
 
                 state.raw_transactions[aid] = api.get_transactions(aid, api_type, from_date, to_date)
                 state.raw_pending_transactions[aid] = api.get_transactions(

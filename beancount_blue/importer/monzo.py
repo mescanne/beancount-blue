@@ -56,13 +56,17 @@ def _cleanup_account(s: str) -> str:
 #
 
 
+class MonzoAuthError(Exception):
+    pass
+
+
 class CustomMonzoAPI(MonzoAPI):
     token: dict[str, Any]
 
     @classmethod
     def auth_from_state_or_cli(
         cls, token_state: dict[str, Any], client_id: str, client_secret: str
-    ) -> tuple["CustomMonzoAPI", bool]:
+    ) -> tuple[CustomMonzoAPI, bool]:
 
         # If it's fresh, just construct it fresh
         if "access_token" not in token_state:
@@ -73,13 +77,14 @@ class CustomMonzoAPI(MonzoAPI):
         try:
             monzo_api = CustomMonzoAPI(token_state, client_id, client_secret)
             monzo_api.whoami()
-            return monzo_api, False
-        except (OAuthError, NoSettingsFile) as e:
-            log.error("Error: %s", e)
+        except (OAuthError, NoSettingsFile):
+            log.exception("Error")
             return cls.auth_from_cli(token_state, client_id, client_secret), True
+        else:
+            return monzo_api, False
 
     @classmethod
-    def auth_from_cli(cls, token_state: dict[str, Any], client_id: str, client_secret: str) -> "CustomMonzoAPI":
+    def auth_from_cli(cls, token_state: dict[str, Any], client_id: str, client_secret: str) -> CustomMonzoAPI:
 
         # Generate the new token state
         new_token: dict[str, Any] = cls.authorize(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
@@ -90,7 +95,7 @@ class CustomMonzoAPI(MonzoAPI):
 
         # Verify it's all good
         if "access_token" not in new_token:
-            raise RuntimeError("Authorization failed, no access_token received")
+            raise MonzoAuthError("Authorization failed, no access_token received")
         _ = input("Confirm when authorized in the app: ")
 
         # Update the token state
@@ -109,7 +114,7 @@ class CustomMonzoAPI(MonzoAPI):
     def __init__(self, stateful_token: dict[str, Any], client_id: str, client_secret: str) -> None:  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
         self.token = stateful_token
         if "access_token" not in self.token:
-            raise RuntimeError("No access_token in token state")
+            raise MonzoAuthError("No access_token in token state")
         self._settings = PyMonzoSettings(
             client_id=client_id,
             client_secret=client_secret,
@@ -157,8 +162,8 @@ class MonzoAccountData(BaseModel):
 
         since = self.account.created
         if days_ago is not None:
-            since = max(since, datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_ago))
-        final_before = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+            since = max(since, datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_ago))
+        final_before = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=1)
         while True:
             before = since + datetime.timedelta(days=90)
             before = min(before, final_before)

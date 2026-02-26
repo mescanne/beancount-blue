@@ -23,6 +23,10 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 T = TypeVar("T", bound=BaseModel)
 
 
+class ImporterConfigurationError(Exception):
+    pass
+
+
 class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     """
     Base class for all API Importers.
@@ -82,7 +86,7 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
                 continue
             if base.__pydantic_generic_metadata__.get("origin") is APIImporter:
                 return base.__pydantic_generic_metadata__.get("args")[0]  # type: ignore
-        raise TypeError(f"{cls.__name__} must inherit from APIImporter[APIData]")
+        raise ImporterConfigurationError(f"{cls.__name__} must inherit from APIImporter[APIData]")
 
     @abstractmethod
     def refresh(self, state: APIData) -> None:
