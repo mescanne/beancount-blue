@@ -79,6 +79,51 @@ class NaiveBayesPredictor:
 
         return best_label, confidence
 
+    def explain(self, doc: str) -> dict[str, Any]:
+        """Returns detailed scoring for the document to diagnose predictions."""
+        if not self.classes:
+            return {}
+
+        words = tokenize(doc)
+        vocab_size = len(self.vocab)
+        class_scores: dict[str, Any] = {}
+
+        for label, count in self.classes.items():
+            prior = math.log(count / self.total_docs)
+            word_scores: dict[str, Any] = {}
+            total_log_prob = prior
+            for w in words:
+                w_count = self.word_counts[label].get(w, 0)
+                prob = (w_count + 1) / (self.class_word_totals[label] + vocab_size)
+                lp = math.log(prob)
+                word_scores[w] = {"count": w_count, "log_prob": lp}
+                total_log_prob += lp
+            class_scores[label] = {
+                "total_log_prob": total_log_prob,
+                "prior_log_prob": prior,
+                "word_scores": word_scores,
+            }
+
+        sorted_classes = sorted(class_scores.items(), key=lambda x: x[1]["total_log_prob"], reverse=True)
+
+        max_lp = sorted_classes[0][1]["total_log_prob"] if sorted_classes else 0
+        try:
+            sum_exp = sum(math.exp(c["total_log_prob"] - max_lp) for _, c in sorted_classes)
+        except OverflowError:
+            sum_exp = float("inf")
+
+        results: list[dict[str, Any]] = []
+        for label, data in sorted_classes[:5]:
+            conf = math.exp(data["total_log_prob"] - max_lp) / sum_exp if sum_exp != float("inf") else 0.0
+            results.append({
+                "label": label,
+                "confidence": conf,
+                "log_prob": data["total_log_prob"],
+                "word_scores": data["word_scores"],
+            })
+
+        return {"tokens": words, "top_classes": results}
+
 
 class TransactionPredictor:
     """Manages ML predictors for Postings (counter accounts) and Payees."""
@@ -107,11 +152,16 @@ class TransactionPredictor:
             if not has_anchor:
                 continue
 
+            # Symmetrical feature extraction from Beancount ledger metadata
+            cat = entry.meta.get("category", "") if entry.meta else ""
+
             doc_parts: list[str] = []
             if entry.payee:
                 doc_parts.append(entry.payee)
             if entry.narration:
                 doc_parts.append(entry.narration)
+            if cat:
+                doc_parts.append(str(cat))
             doc = " ".join(doc_parts)
 
             # Predict Posting
@@ -125,7 +175,14 @@ class TransactionPredictor:
 
             # Predict Payee
             if entry.payee:
-                payee_docs.append(entry.narration or "")
+                p_doc_parts: list[str] = []
+                if entry.narration:
+                    p_doc_parts.append(entry.narration)
+                if cat:
+                    p_doc_parts.append(str(cat))
+                p_doc = " ".join(p_doc_parts)
+
+                payee_docs.append(p_doc)
                 payee_labels.append(entry.payee)
 
             count += 1
@@ -154,15 +211,23 @@ class TransactionPredictor:
                     accounts = label.split(" ")
                     tx.counter_account = accounts[0]
                     tx.meta["conf_counteraccount"] = f"{label} (confidence {conf * 100:.0f}%)"
+                    tx.meta["conf_debug_posting"] = doc
                     predictions_made += 1
 
             # 2. Payee Prediction
-            if tx.narration:
-                p_doc = f"{tx.narration} {tx.category or ''}"
+            if tx.narration or tx.category:
+                p_doc_parts: list[str] = []
+                if tx.narration:
+                    p_doc_parts.append(tx.narration)
+                if tx.category:
+                    p_doc_parts.append(tx.category)
+                p_doc = " ".join(p_doc_parts)
+
                 p_label, p_conf = self.payee_predictor.predict(p_doc)
                 if p_label and p_conf >= min_confidence:
                     tx.payee = p_label
                     tx.meta["conf_payee"] = f"{p_label} (confidence {p_conf * 100:.0f}%)"
+                    tx.meta["conf_debug_payee"] = p_doc
 
         log.info(f"Applied predictions to {predictions_made} / {len(imp_txns)} transactions.")
 

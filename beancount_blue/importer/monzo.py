@@ -268,7 +268,7 @@ class MonzoAccountData(BaseModel):
             settled=t.settled is not None,
             amount=now_amount,
             currency=t.currency,
-            account=self.account.id,
+            account=self.account.id + ":Main",
             counter_account=counter_account,
             narration=(t.description if "pot_id" not in t.metadata else "pot movement"),
             payee=metadata.get("orig_payee"),

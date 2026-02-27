@@ -83,6 +83,10 @@ def app():
     train_parser = subparsers.add_parser("train", help="Train the ML predictor from a ledger file")
     train_parser.add_argument("--ledger", type=Path, help="Path to the Beancount ledger file")
 
+    # Command: explain
+    explain_parser = subparsers.add_parser("explain", help="Diagnose an ML prediction for a given string")
+    explain_parser.add_argument("text", type=str, help="The string to predict (e.g., 'TFL Travel transport')")
+
     args = parser.parse_args()
 
     # A. Load the YAML (Flat, simple loading)
@@ -131,6 +135,30 @@ def app():
         entries, _, _ = load_file(str(ledger_path))
         anchors = config.predict_anchor_accounts or config.anchor_accounts
         predictor.train(entries, anchors, config.predict_skip_accounts)
+
+    elif args.command == "explain":
+        from beancount_blue.importer.predictor import TransactionPredictor
+
+        predictor = TransactionPredictor(Path(config.predict_model_path))
+        predictor.load()
+
+        print(f"\n--- Diagnosing ML Prediction for '{args.text}' ---\n")
+        print("POSTING (Counter-Account) PREDICTION:")
+        posting_res = predictor.posting_predictor.explain(args.text)
+        print(f"Tokens extracted: {posting_res.get('tokens')}")
+        for c in posting_res.get("top_classes", []):
+            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")
+            for w, s in c["word_scores"].items():
+                print(f"    - '{w}': matched {s['count']} times")
+
+        print("\nPAYEE PREDICTION:")
+        payee_res = predictor.payee_predictor.explain(args.text)
+        print(f"Tokens extracted: {payee_res.get('tokens')}")
+        for c in payee_res.get("top_classes", []):
+            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")
+            for w, s in c["word_scores"].items():
+                print(f"    - '{w}': matched {s['count']} times")
+        print("")
 
     else:
         log.warning("No valid command provided.")

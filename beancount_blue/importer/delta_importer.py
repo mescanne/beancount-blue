@@ -123,8 +123,6 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         data: List of imported transactions.
         config: Configuration object.
         """
-        if self.min_date:
-            data = [e for e in data if e.date >= self.min_date]
         if self.account_map:
             m = self.account_map
             sorted_keys = sorted(m.keys(), key=len, reverse=True)
@@ -192,7 +190,14 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
 
         ret = imported_to_beancount(imported_entries, existing=existing)
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
-        return ret
+        return self.filter_beancount(ret)
+
+    def filter_beancount(self, entries: Entries) -> Entries:
+        """Filter the final Beancount entries."""
+        if not self.min_date:
+            return entries
+
+        return [e for e in entries if e.date >= self.min_date]
 
 
 @final
@@ -217,8 +222,7 @@ class BeancountAPIImporter(Importer):  # type: ignore[no-any-unimported]
     @final
     @override
     def extract(self, filepath: str, existing: Entries | None = None) -> Entries:
-        entries = self.importer.beancount_load(existing)
-        return [e for e in entries if self.importer.min_date is None or e.date >= self.importer.min_date]
+        return self.importer.beancount_load(existing)
 
     @final
     @override
