@@ -223,6 +223,10 @@ class MonzoAccountData(BaseModel):
         if now_amount == Decimal(0):
             return None
 
+        # Skip rewards
+        if "is_reward_payout" in t.metadata:
+            return None
+
         # Create base metadata
         metadata = {
             "type": "monzo",
