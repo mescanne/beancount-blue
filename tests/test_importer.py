@@ -89,7 +89,7 @@ class TestImporter(unittest.TestCase):
 
         result = imported_to_beancount(imported)
 
-        self.assertEqual(len(result), 3)
+        self.assertEqual(len(result), 2)
 
         tx = result[0]
         self.assertIsInstance(tx, Transaction)

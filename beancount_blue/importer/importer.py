@@ -149,15 +149,13 @@ def imported_to_beancount(
     # Sort by date
     output_trans.sort(key=lambda t: t.date)
 
-    # Set of all accounts being updated
-    accounts = set([t.account for t in imported] + [t.counter_account for t in imported if t.counter_account])
+    # Set of all primary API accounts being updated
+    accounts = set(t.account for t in imported)
 
     for account in accounts:
         # Find last date for settled transactions
         unsettled_dates = [
-            t.date
-            for t in imported
-            if not t.settled and t.amount != Decimal(0) and (t.account == account or t.counter_account == account)
+            t.date for t in imported if not t.settled and t.amount != Decimal(0) and t.account == account
         ]
         if unsettled_dates:
             new_bals_date = min(unsettled_dates)
