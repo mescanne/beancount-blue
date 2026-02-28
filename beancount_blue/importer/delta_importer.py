@@ -64,6 +64,10 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     predict_skip_accounts: list[str] = Field(
         default_factory=list, description="List of counter-accounts to explicitly ignore when training the ML model."
     )
+    predict_remap_accounts: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of accounts to rename during ML prediction training.",
+    )
     predict_min_confidence: float = Field(
         0.5, description="The minimum confidence threshold (0.0 to 1.0) required to apply a prediction."
     )
@@ -182,7 +186,7 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
             if retrain and self.predict_ledger_path:
                 entries, _, _ = load_file(self.predict_ledger_path)
                 anchors = self.predict_anchor_accounts or self.anchor_accounts
-                predictor.train(entries, anchors, self.predict_skip_accounts)
+                predictor.train(entries, anchors, self.predict_skip_accounts, self.predict_remap_accounts)
             else:
                 predictor.load()
 

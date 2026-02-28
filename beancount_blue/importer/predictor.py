@@ -35,6 +35,7 @@ class NaiveBayesPredictor:
     def train(self, docs: list[str], labels: list[str]) -> None:
         self.__init__()  # reset
         for doc, label in zip(docs, labels, strict=True):
+            log.info(f"Mapping {label} to {doc}")
             self.classes[label] += 1
             self.total_docs += 1
             words = tokenize(doc)
@@ -133,7 +134,13 @@ class TransactionPredictor:
         self.posting_predictor = NaiveBayesPredictor()
         self.payee_predictor = NaiveBayesPredictor()
 
-    def train(self, entries: Iterable[Any], anchor_accounts: list[str], skip_accounts: list[str]) -> None:
+    def train(
+        self,
+        entries: Iterable[Any],
+        anchor_accounts: list[str],
+        skip_accounts: list[str],
+        remap_accounts: dict[str, str] | None = None,
+    ) -> None:
         log.info(f"Training predictors using anchors: {anchor_accounts}")
         posting_docs: list[str] = []
         posting_labels: list[str] = []
@@ -142,6 +149,7 @@ class TransactionPredictor:
 
         skip_set = set(skip_accounts)
         anchor_set = set(anchor_accounts)
+        remap = remap_accounts or {}
 
         count = 0
         for entry in entries:
@@ -166,7 +174,9 @@ class TransactionPredictor:
 
             # Predict Posting
             other_accounts = [
-                p.account for p in entry.postings if p.account not in anchor_set and p.account not in skip_set
+                remap.get(p.account, p.account)
+                for p in entry.postings
+                if p.account not in anchor_set and p.account not in skip_set
             ]
             if other_accounts:
                 label = " ".join(sorted(other_accounts))

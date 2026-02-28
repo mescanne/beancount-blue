@@ -134,7 +134,7 @@ def app():
         predictor = TransactionPredictor(Path(config.predict_model_path))
         entries, _, _ = load_file(str(ledger_path))
         anchors = config.predict_anchor_accounts or config.anchor_accounts
-        predictor.train(entries, anchors, config.predict_skip_accounts)
+        predictor.train(entries, anchors, config.predict_skip_accounts, config.predict_remap_accounts)
 
     elif args.command == "explain":
         from beancount_blue.importer.predictor import TransactionPredictor
