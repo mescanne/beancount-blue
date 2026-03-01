@@ -248,7 +248,7 @@ class StarlingImporter(APIImporter[StarlingData]):
         accounts: set[UUID] = set()
         category_map: dict[UUID, str] = {}
         for accountUid, account in state.accounts.items():
-            category_map[account.defaultCategory] = str(accountUid)
+            category_map[account.defaultCategory] = str(accountUid) + ":Main"
             accounts.add(account.defaultCategory)
             for space in state.account_spending_spaces[accountUid]:
                 category_map[space.spaceUid] = str(accountUid) + ":" + cleanup_string(space.name)

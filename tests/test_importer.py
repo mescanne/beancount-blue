@@ -128,8 +128,7 @@ class TestImporter(unittest.TestCase):
 
         result = imported_to_beancount(imported, existing=existing)
 
-        self.assertEqual(len(result), 1)
-        self.assertIsInstance(result[0], Balance)
+        self.assertEqual(len(result), 0)
 
     def test_existing_transaction_amount_change(self):
         existing = [

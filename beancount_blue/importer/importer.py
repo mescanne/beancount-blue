@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from beancount.core.amount import Amount
 from beancount.core.data import Balance, Directive, Posting, Transaction, new_metadata
@@ -33,7 +34,9 @@ class ImportedTransaction:
 
 
 def imported_to_beancount(
-    imported: list[ImportedTransaction], existing: list[Directive] | None = None
+    imported: list[ImportedTransaction],
+    existing: list[Directive] | None = None,
+    account_configs: dict[str, Any] | None = None,
 ) -> list[Directive]:
 
     # If nothing imported, nothing to do
@@ -149,8 +152,17 @@ def imported_to_beancount(
     # Sort by date
     output_trans.sort(key=lambda t: t.date)
 
-    # Set of all primary API accounts being updated
-    accounts = set(t.account for t in imported)
+    # Only generate balances for primary accounts that had actual new transactions imported
+    accounts: set[str] = set()
+    for t in output_trans:
+        if isinstance(t, Transaction):
+            for p in t.postings:
+                if getattr(p.units, "number", None):
+                    # Keep it simple: check all imported accounts to see if this posting matches one
+                    for imp_tx in imported:
+                        if imp_tx.account == p.account:
+                            accounts.add(p.account)
+                            break
 
     for account in accounts:
         # Find last date for settled transactions
@@ -168,7 +180,9 @@ def imported_to_beancount(
         if last_balance_date and new_bals_date <= last_balance_date:
             log.info("skipping balance for %s as no more settled days", account)
             continue
-        output_trans.extend(_generate_balance_entries(existing + output_trans, account, new_bals_date))
+
+        config = account_configs.get(account) if account_configs else None
+        output_trans.extend(_generate_balance_entries(existing + output_trans, account, new_bals_date, config))
 
     return output_trans
 
@@ -181,15 +195,26 @@ def _find_last_balance(entries: list[Directive], account: str) -> date | None:
     return max(e.date for e in existing_bals)
 
 
-def _generate_balance_entries(entries: list[Directive], account: str, asof_date: date) -> list[Directive]:
+def _generate_balance_entries(
+    entries: list[Directive], account: str, asof_date: date, config: Any | None = None
+) -> list[Directive]:
     balance = defaultdict[str, Decimal](Decimal)
     output_trans: list[Directive] = []
+
+    start_date = date.min
+    if config and getattr(config, "starting_date", None):
+        start_date = config.starting_date
+
+    if config and getattr(config, "starting_balance", None) is not None and getattr(config, "currency", None):
+        balance[config.currency] += config.starting_balance
 
     # Calculate the implied balance
     for entry in entries:
         if not isinstance(entry, Transaction):
             continue
         if entry.date >= asof_date:
+            continue
+        if entry.date < start_date:
             continue
         for p in entry.postings:
             if p.account == account and p.units and p.units.number:

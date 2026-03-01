@@ -2,12 +2,13 @@ import logging
 import os
 from abc import ABCMeta, abstractmethod
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from types import get_original_bases
 from typing import TypeVar, final, override
 
 from beancount.api import Account
-from beancount.core.data import Directive, Entries
+from beancount.core.data import Balance, Directive, Entries, Transaction
 from beangulp.importer import Importer  # pyright: ignore[reportMissingTypeStubs]
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
@@ -21,6 +22,17 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 T = TypeVar("T", bound=BaseModel)
+
+
+class AccountConfig(BaseModel):
+    name: str = Field(description="The Beancount account name.")
+    starting_balance: Decimal | None = Field(
+        None, description="The specific opening balance if the API lacks full history."
+    )
+    starting_date: date | None = Field(
+        None, description="The date of the opening balance, effectively a min_date for this account."
+    )
+    currency: str | None = Field(None, description="The currency of the starting balance.")
 
 
 class ImporterConfigurationError(Exception):
@@ -38,10 +50,13 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     # Main type
     importer_name: str = Field(description="The unique name identifying this importer.")
 
+    # Name of the importer
+    name: str | None = Field(None, description="Name of this particular import configuration.")
+
     # Configure parameters
     min_date: date | None = Field(None, description="Only extract transactions on or after this date.")
-    account_map: dict[str, str] | None = Field(
-        None, description="Mapping of API account IDs to Beancount account names."
+    account_map: dict[str, str | AccountConfig] | None = Field(
+        None, description="Mapping of API account IDs to Beancount account names or config objects."
     )
     cache_only: bool = Field(
         False, description="If True, skips the API refresh and only loads data from the local cache."
@@ -79,8 +94,20 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     @property
     def anchor_accounts(self) -> list[str]:
         if self.account_map:
-            return list(self.account_map.values())
+            return [v.name if isinstance(v, AccountConfig) else v for v in self.account_map.values()]
         return []
+
+    def get_account_configs_by_name(self) -> dict[str, AccountConfig]:
+        if not self.account_map:
+            return {}
+        return {
+            (v.name if isinstance(v, AccountConfig) else v): (
+                v
+                if isinstance(v, AccountConfig)
+                else AccountConfig(name=v, starting_balance=None, starting_date=None, currency=None)
+            )
+            for v in self.account_map.values()
+        }
 
     @classmethod
     def get_types(cls) -> type[APIData]:
@@ -128,7 +155,7 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         config: Configuration object.
         """
         if self.account_map:
-            m = self.account_map
+            m = {k: (v.name if isinstance(v, AccountConfig) else v) for k, v in self.account_map.items()}
             sorted_keys = sorted(m.keys(), key=len, reverse=True)
             for e in data:
                 for k in sorted_keys:
@@ -192,16 +219,38 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
 
             predictor.apply_predictions(imported_entries, min_confidence=self.predict_min_confidence)
 
-        ret = imported_to_beancount(imported_entries, existing=existing)
+        ret = imported_to_beancount(
+            imported_entries, existing=existing, account_configs=self.get_account_configs_by_name()
+        )
         log.info(f"Found {len(imported_entries)} entries, returning {len(ret)} entries when de-duplicated.")
         return self.filter_beancount(ret)
 
     def filter_beancount(self, entries: Entries) -> Entries:
         """Filter the final Beancount entries."""
-        if not self.min_date:
-            return entries
+        configs = self.get_account_configs_by_name()
+        filtered: list[Directive] = []
+        for e in entries:
+            # Global min_date
+            if self.min_date and getattr(e, "date", date.min) < self.min_date:
+                continue
 
-        return [e for e in entries if e.date >= self.min_date]
+            # Per-account starting_date (min_date)
+            drop = False
+            if isinstance(e, Transaction):
+                for p in e.postings:
+                    conf = configs.get(p.account)
+                    if conf and conf.starting_date and e.date < conf.starting_date:
+                        drop = True
+                        break
+            elif isinstance(e, Balance):
+                conf = configs.get(e.account)
+                if conf and conf.starting_date and e.date < conf.starting_date:
+                    drop = True
+
+            if not drop:
+                filtered.append(e)
+
+        return filtered
 
 
 @final
