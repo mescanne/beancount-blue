@@ -19,6 +19,7 @@ dependencies = [
 	"authlib>=1.4.1",
 	"beancount",
 	"beangulp>=0.2.0",
+	"fava>=1.30.12",
 	"httpx>=0.28.1",
 	"pydantic>=2.12.4",
 	"pydantic-settings",
@@ -50,6 +51,8 @@ dev = [
     "mkdocs-material>=9.5.18",
     "mkdocstrings[python]>=0.28.3",
     "pip-audit>=2.10.0",
+    "playwright>=1.58.0",
+    "pytest-playwright>=0.7.2",
 ]
 
 [build-system]
@@ -81,10 +84,10 @@ select = [
     "TRY", # tryceratops (exception handling antipatterns)
     "W",   # pycodestyle warnings
 ]
-ignore = ["TRY003"]
+ignore = ["TRY003", "E501", "TRY301", "TRY400", "TRY300"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106"]
+"tests/*" = ["S101", "S105", "S106", "S603", "S607"]
 
 [tool.ruff.format]
 preview = true
@@ -106,3 +109,7 @@ source = ["beancount_blue"]
 
 [tool.deptry]
 exclude = ["^.venv/", "^existing_importers/", "t.py"]
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["flask", "markdown2"]
+DEP004 = ["pytest", "playwright"]

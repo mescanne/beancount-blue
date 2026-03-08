@@ -322,6 +322,24 @@ class MonzoData(BaseModel):
 
 
 class MonzoImporter(APIImporter[MonzoData]):
+    """
+    ### Monzo API Setup Instructions
+
+    To automatically sync your Monzo account, you need to create an OAuth API client in the Monzo Developer portal.
+
+    1. **Log in:** Go to [developers.monzo.com](https://developers.monzo.com/) and log in with your email. You will receive a magic link in your email and a push notification in your Monzo app to approve the login.
+    2. **Create a Client:**
+       - Click on **"Clients"** in the top navigation bar.
+       - Click **"New OAuth Client"**.
+       - Give it a name (e.g., `Beancount Sync`).
+       - Set the **Confidentiality** to `Confidential`.
+       - Set the **Redirect URLs** to `http://localhost:8000/callback` (or your preferred local callback URL if you are using a custom auth flow).
+    3. **Copy Credentials:** Once created, copy the **Client ID** and **Client Secret**.
+    4. **Configure Fava:** Paste these values into the `client_id` and `client_secret` fields below.
+
+    *Note: Monzo requires you to re-authenticate API access via the app every 90 days. If your sync fails with an authentication error, you may need to approve the connection in your Monzo app.*
+    """
+
     importer_name: Literal["monzo"]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     units: int = 2

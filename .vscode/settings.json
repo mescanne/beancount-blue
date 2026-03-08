@@ -13,9 +13,10 @@
   "python.analysis.useLibraryCodeForTypes": true,
   "python.analysis.diagnosticMode": "workspace",
   "python.analysis.include": [
-      "beancount_gains_calc"
+    "beancount_gains_calc"
   ],
   "python.analysis.exclude": [
-      "**/__pycache__"
-  ]
+    "**/__pycache__"
+  ],
+  "makefile.configureOnOpen": false
 }

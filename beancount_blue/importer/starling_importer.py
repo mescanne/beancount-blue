@@ -146,6 +146,22 @@ def cleanup_string(s: str | None) -> str:
 
 
 class StarlingImporter(APIImporter[StarlingData]):
+    """
+    ### Starling API Setup Instructions
+
+    To sync your Starling account, you need to generate a Personal Access Token from the Starling Developer portal.
+
+    1. **Log in:** Go to [developer.starlingbank.com](https://developer.starlingbank.com/) and create a developer account if you haven't already.
+    2. **Connect your Bank Account:** Follow the prompts to link your actual Starling Bank account to your developer account. You will need the Starling app on your phone to approve this.
+    3. **Create a Token:**
+       - Navigate to **"Personal Access Tokens"** in the developer dashboard.
+       - Click **"Create Token"**.
+       - Give it a name (e.g., `Beancount Fava Sync`).
+       - Ensure you grant it **read-only** scopes for `account`, `balance`, and `transaction` data. Do not grant payment or write scopes.
+    4. **Copy the Token:** Once generated, copy the token immediately. You will not be able to see it again.
+    5. **Configure Fava:** Paste this token into the `personal_access_token` field below.
+    """
+
     importer_name: Literal["starling"]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     personal_access_token: SecretStr = Field(..., description="Starling Personal Access Token")

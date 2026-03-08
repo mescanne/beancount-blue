@@ -1,0 +1,9 @@
+global:
+  import_dir: "import_data"
+
+monzo:
+  - name: "My Personal Monzo"
+    client_id: "your_client_id"
+    client_secret: "your_client_secret"
+    account_map:
+      acc_123: "Assets:UK:Monzo:Current"

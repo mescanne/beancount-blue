@@ -265,6 +265,23 @@ class TrueLayerAPI:
 
 
 class TrueLayerImporter(APIImporter[TrueLayerData]):
+    """
+    ### TrueLayer API Setup Instructions
+
+    TrueLayer allows you to connect to dozens of UK/EU banks (like Amex, Chase, Barclaycard) using Open Banking.
+
+    1. **Create an Account:** Go to [console.truelayer.com](https://console.truelayer.com/) and create a free developer account.
+    2. **Create an Application:**
+       - In the TrueLayer Console, create a new application.
+       - Go to **"App Settings"**.
+       - Under **"Redirect URIs"**, add `http://localhost:8000/callback` (or your preferred local callback URL).
+    3. **Enable Data API:** Ensure the **"Data"** (Open Banking) product is enabled for your application.
+    4. **Copy Credentials:** Go to **"App settings" -> "Credentials"** and copy your **Client ID** and **Client Secret**.
+    5. **Configure Fava:** Paste these into the `client_id` and `client_secret` fields below.
+
+    *Note: To link a specific bank account, you will typically need to complete TrueLayer's Auth Link flow in a browser to authorize the connection and get a valid `access_token`.*
+    """
+
     importer_name: Literal["truelayer"]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     client_id: str = Field(description="Truelayer Client ID")
