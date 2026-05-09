@@ -7,8 +7,7 @@ from pathlib import Path
 from types import get_original_bases
 from typing import TypeVar, final, override
 
-from beancount.api import Account
-from beancount.core.data import Balance, Directive, Entries, Transaction
+from beancount.core.data import Account, Balance, Directive, Entries, Transaction
 from beangulp.importer import Importer  # pyright: ignore[reportMissingTypeStubs]
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings

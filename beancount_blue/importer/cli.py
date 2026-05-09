@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import yaml
-from beancount.api import print_entries  # pyright: ignore[reportUnknownVariableType]
+from beancount.parser.printer import print_entries  # pyright: ignore[reportUnknownVariableType]
 from pydantic import Field, TypeAdapter
 
 from beancount_blue.importer.monzo import MonzoImporter

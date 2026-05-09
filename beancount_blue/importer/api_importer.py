@@ -3,8 +3,7 @@ import os
 from pathlib import Path
 from typing import TypeVar, final, override
 
-from beancount.api import Account
-from beancount.core.data import Directive, Entries
+from beancount.core.data import Account, Directive, Entries
 from beangulp.importer import Importer  # pyright: ignore[reportMissingTypeStubs]
 from pydantic import BaseModel, TypeAdapter
 

@@ -52,8 +52,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, NamedTuple
 
-from beancount.api import FLAG_OKAY, Amount, Directive, Posting, Transaction
-from beancount.core.data import Entries
+from beancount.core.amount import Amount
+from beancount.core.data import Directive, Entries, Posting, Transaction
+from beancount.core.flags import FLAG_OKAY
 from dateutil import relativedelta
 
 __plugins__ = ["amortize"]
