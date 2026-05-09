@@ -50,7 +50,13 @@ jobs:
         run: uv sync
 
       - name: Run tests
-        run: uv run python -m pytest tests --cov --cov-config=pyproject.toml --cov-report=xml
+        run: make test
+
+      - name: Install Playwright Browsers
+        run: uv run playwright install chromium
+
+      - name: Run integration tests
+        run: make integration-test
 
       - name: Upload coverage reports to Codecov with GitHub Action on Python 3.12
         uses: codecov/codecov-action@v4

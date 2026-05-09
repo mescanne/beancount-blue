@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from beancount_blue.importer.monzo import MonzoData, MonzoImporter
-from beancount_blue.importer.starling_importer import StarlingData, StarlingImporter
+from beancount_blue.importer.starling import StarlingData, StarlingImporter
 from beancount_blue.importer.truelayer import TrueLayerData, TrueLayerImporter
 
 

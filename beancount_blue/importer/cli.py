@@ -36,7 +36,7 @@ from beancount.api import print_entries  # pyright: ignore[reportUnknownVariable
 from pydantic import Field, TypeAdapter
 
 from beancount_blue.importer.monzo import MonzoImporter
-from beancount_blue.importer.starling_importer import StarlingImporter
+from beancount_blue.importer.starling import StarlingImporter
 from beancount_blue.importer.truelayer import TrueLayerImporter
 
 log = logging.getLogger(__name__)
@@ -100,6 +100,7 @@ def app():
 
     try:
         config = TypeAdapter[Importer](Importer).validate_python(yaml_data)
+        config.interactive_auth = True
     except Exception:
         log.exception("Configuration Error")
         sys.exit(1)

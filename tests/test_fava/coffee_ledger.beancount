@@ -1,0 +1,15 @@
+option "title" "Coffee Test Ledger"
+option "operating_currency" "GBP"
+
+2020-01-01 custom "fava-extension" "beancount_blue.importer.fava.bank_sync"
+
+2024-01-01 open Assets:UK:Monzo:Main
+2024-01-01 open Expenses:Food:Coffee
+
+2024-02-01 * "Starbucks" "Morning Coffee"
+  Assets:UK:Monzo:Main  -3.50 GBP
+  Expenses:Food:Coffee   3.50 GBP
+
+2024-02-15 * "Starbucks" "Afternoon Latte"
+  Assets:UK:Monzo:Main  -4.20 GBP
+  Expenses:Food:Coffee   4.20 GBP

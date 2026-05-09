@@ -111,10 +111,11 @@ class TrueLayerAPI:
     API_URL = "https://api.truelayer.com/data/v1"
     TOKEN_ENDPOINT = "https://auth.truelayer.com/connect/token"  # noqa: S105
 
-    def __init__(self, client_id: str, client_secret: str, state: TrueLayerData):
+    def __init__(self, client_id: str, client_secret: str, state: TrueLayerData, interactive_auth: bool = True):
         self.client_id = client_id
         self.client_secret = client_secret
         self.state = state
+        self.interactive_auth = interactive_auth
 
         self.client = OAuth2Client(
             client_id=client_id,
@@ -136,6 +137,9 @@ class TrueLayerAPI:
         """Ensures the client has a valid token, performing the initial OAuth flow if necessary."""
         if self.state.token:
             return
+
+        if not self.interactive_auth:
+            raise TrueLayerAuthError("Authorization missing and interactive_auth is disabled. Run via CLI.")
 
         log.info("No token found. Starting OAuth authorization flow.")
 
@@ -282,7 +286,7 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
     *Note: To link a specific bank account, you will typically need to complete TrueLayer's Auth Link flow in a browser to authorize the connection and get a valid `access_token`.*
     """
 
-    importer_name: Literal["truelayer"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    importer_name: Literal["truelayer"] = "truelayer"  # pyright: ignore[reportIncompatibleVariableOverride]
 
     client_id: str = Field(description="Truelayer Client ID")
     client_secret: SecretStr = Field(description="Truelayer Client Secret")
@@ -294,7 +298,9 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
     def refresh(self, state: TrueLayerData) -> None:
         is_first_run = state.token is None
 
-        api = TrueLayerAPI(self.client_id, self.client_secret.get_secret_value(), state)
+        api = TrueLayerAPI(
+            self.client_id, self.client_secret.get_secret_value(), state, interactive_auth=self.interactive_auth
+        )
         api.ensure_authorized()
 
         # 1. Accounts
@@ -373,9 +379,10 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
         return entries
 
     def _transform_transaction(self, txn: TrueLayerTransaction, account_id: str) -> ImportedTransaction:
-        amount = currency_to_decimal(txn.amount)
-        if txn.transaction_type == "DEBIT":
-            amount = -amount
+        # Standardize amount: DEBIT should be negative (money out), CREDIT positive (money in)
+        # We use abs() to handle cases where the provider might have already signed the amount.
+        val = currency_to_decimal(txn.amount)
+        amount = -abs(val) if txn.transaction_type == "DEBIT" else abs(val)
 
         date = dateutil.parser.parse(txn.timestamp).date()
 

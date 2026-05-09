@@ -12,7 +12,7 @@ async function waitForJSONEditor() {
 
 export default {
     init: async function() {
-        console.log("BeancountBlue JS Initialized");
+        console.log("BankSync JS Initialized");
 
         const container = document.getElementById('json-editor-container');
         if (!container) {
@@ -20,7 +20,7 @@ export default {
             return;
         }
 
-        const extBaseUrl = window.location.pathname.split("extension/")[0] + "extension/BeancountBlue/";
+        const extBaseUrl = window.location.pathname.split("extension/")[0] + "extension/BankSync/";
         const saveUrl = extBaseUrl + "save_config";
         const syncUrl = extBaseUrl + "sync";
         const generateUrl = extBaseUrl + "generate";
@@ -31,27 +31,44 @@ export default {
             if (!alertContainer) return;
             const alert = document.createElement('div');
             alert.className = `alert ${isError ? 'alert-error' : 'alert-success'}`;
-            alert.style.padding = '10px';
-            alert.style.margin = '10px 0';
-            alert.style.borderRadius = '4px';
-            alert.style.color = 'white';
-            alert.style.backgroundColor = isError ? '#e74c3c' : '#2ecc71';
-            alert.innerText = msg;
+            alert.innerHTML = `<span>${isError ? '❌' : '✅'} ${msg}</span>`;
+
+            // Add close button
+            const close = document.createElement('button');
+            close.innerHTML = '&times;';
+            close.style.background = 'none';
+            close.style.border = 'none';
+            close.style.color = 'inherit';
+            close.style.cursor = 'pointer';
+            close.style.fontSize = '1.5em';
+            close.onclick = () => alert.remove();
+            alert.appendChild(close);
+
             alertContainer.appendChild(alert);
-            setTimeout(() => alert.remove(), 5000);
+            if (!isError) setTimeout(() => alert.remove(), 8000);
         }
 
         function showHandoffAlert(msg) {
             const alertContainer = document.getElementById('alerts-container');
             if (!alertContainer) return;
             const alert = document.createElement('div');
-            alert.style.padding = '10px';
-            alert.style.margin = '10px 0';
-            alert.style.borderRadius = '4px';
-            alert.style.color = '#333';
-            alert.style.backgroundColor = '#f1c40f';
+            alert.className = 'alert alert-info';
             const importUrl = window.location.pathname.split("extension/")[0] + "import/";
-            alert.innerHTML = msg + ` <a href="${importUrl}" style="font-weight: bold; text-decoration: underline;">Review in Import Tab &rarr;</a>`;
+            alert.innerHTML = `
+                <span>✨ ${msg}</span>
+                <a href="${importUrl}" class="handoff-btn">Review in Import Tab &rarr;</a>
+            `;
+
+            const close = document.createElement('button');
+            close.innerHTML = '&times;';
+            close.style.background = 'none';
+            close.style.border = 'none';
+            close.style.color = 'inherit';
+            close.style.cursor = 'pointer';
+            close.style.fontSize = '1.5em';
+            close.onclick = () => alert.remove();
+            alert.appendChild(close);
+
             alertContainer.appendChild(alert);
         }
 
@@ -68,12 +85,11 @@ export default {
                 const rootSchema = {
                     type: "object",
                     title: "Active Importers",
-                    format: "tabs",
                     $defs: schema.$defs || {},
                     properties: {
-                        monzo: { type: "array", title: "Monzo Importers", format: "tabs", items: { $ref: "#/$defs/MonzoImporter" } },
-                        starling: { type: "array", title: "Starling Importers", format: "tabs", items: { $ref: "#/$defs/StarlingImporter" } },
-                        truelayer: { type: "array", title: "TrueLayer Importers", format: "tabs", items: { $ref: "#/$defs/TrueLayerImporter" } }
+                        monzo: { type: "array", title: "Monzo Connections", format: "tabs", items: { $ref: "#/$defs/MonzoImporter" } },
+                        starling: { type: "array", title: "Starling Connections", format: "tabs", items: { $ref: "#/$defs/StarlingImporter" } },
+                        truelayer: { type: "array", title: "TrueLayer Connections", format: "tabs", items: { $ref: "#/$defs/TrueLayerImporter" } }
                     }
                 };
 
@@ -169,7 +185,7 @@ export default {
                     const data = await res.json();
                     if (data.status === 'success') {
                         showAlert(`Successfully synced API data.`);
-                        button.innerText = "Sync (API) ✅";
+                        button.innerText = "Sync API ✅";
                     } else {
                         showAlert(`Error: ${data.message}`, true);
                         button.innerText = "Sync Failed ❌";
@@ -204,7 +220,7 @@ export default {
                     const data = await res.json();
                     if (data.status === 'success') {
                         showHandoffAlert(`Generated import file.`);
-                        button.innerText = "Generate (ML) ✅";
+                        button.innerText = "Generate Beancount ✅";
                     } else {
                         showAlert(`Error: ${data.message}`, true);
                         button.innerText = "Generation Failed ❌";

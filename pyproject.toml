@@ -1,7 +1,7 @@
 [project]
 name = "beancount_blue"
 dynamic = ["version"]
-description = "This is a template repository for Python projects that use uv for their dependency management."
+description = "Set of useful plugins and extensions for Beancount and Fava."
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
 readme = "README.md"
 keywords = ['python']
@@ -53,6 +53,7 @@ dev = [
     "pip-audit>=2.10.0",
     "playwright>=1.58.0",
     "pytest-playwright>=0.7.2",
+    "nest-asyncio>=1.6.0",
 ]
 
 [build-system]
@@ -66,6 +67,9 @@ packages = ["beancount_blue"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
 
 [tool.ruff]
 target-version = "py312"

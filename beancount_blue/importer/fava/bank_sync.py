@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -9,42 +10,52 @@ from flask import jsonify, request
 from pydantic import TypeAdapter
 
 from beancount_blue.importer.cli import Importer
+from beancount_blue.importer.monzo import MonzoImporter
+from beancount_blue.importer.starling import StarlingImporter
+from beancount_blue.importer.truelayer import TrueLayerImporter
+
+# Rebuild models to resolve forward references for Pydantic v2
+MonzoImporter.model_rebuild()
+StarlingImporter.model_rebuild()
+TrueLayerImporter.model_rebuild()
 
 log = logging.getLogger(__name__)
 
 
-class BeancountBlue(FavaExtensionBase):  # type: ignore
+class BankSync(FavaExtensionBase):  # type: ignore
     report_title = "Bank Sync"
     has_js_module = True
 
     def __init__(self, ledger: Any, config: Any = None) -> None:
         super().__init__(ledger, config)
         self.config_file = (Path(self.ledger.options["filename"]).parent / "importers.yaml").absolute()
-        log.info(f"BeancountBlue extension initialized. Config file: {self.config_file}")
+        log.info(f"BankSync extension initialized. Config file: {self.config_file}")
+
+        # Ensure config file exists with defaults if missing
+        if not self.config_file.exists():
+            try:
+                default_file = Path(__file__).parent / "default_importers.yaml"
+                if default_file.exists():
+                    self.config_file.write_text(default_file.read_text())
+                    log.info(f"Created default config file at {self.config_file}")
+            except Exception as e:
+                log.error(f"Failed to create default config file: {e}")
 
     def get_config_content(self) -> str:
         if self.config_file.exists():
             try:
-                return self.config_file.read_text()
+                content = self.config_file.read_text().strip()
+                if content:
+                    return content
             except Exception as e:
                 log.error(f"Failed to read config file {self.config_file}: {e}")
 
-        # Default starter config
-        return """# Unified importers.yaml
-global:
-  import_dir: "import_data"
+        # Default starter config from file
+        default_file = Path(__file__).parent / "default_importers.yaml"
+        if default_file.exists():
+            return default_file.read_text()
 
-monzo:
-  - name: "My Monzo"
-    client_id: "your_client_id"
-    client_secret: "your_client_secret"
-    account_map:
-      acc_123: "Assets:UK:Monzo:Current"
-
-starling:
-  - name: "My Starling"
-    personal_access_token: "your_token"
-"""
+        return "# No configuration found."
 
     def parse_config(self) -> dict[str, Any]:
         content = self.get_config_content()
@@ -59,16 +70,22 @@ starling:
             return {}
 
     def get_docs(self) -> list[str]:
+        import inspect
+
         import markdown2
 
         from beancount_blue.importer.monzo import MonzoImporter
-        from beancount_blue.importer.starling_importer import StarlingImporter
+        from beancount_blue.importer.starling import StarlingImporter
         from beancount_blue.importer.truelayer import TrueLayerImporter
 
         docs: list[str] = []
         for cls in [MonzoImporter, StarlingImporter, TrueLayerImporter]:
             if cls.__doc__:
-                docs.append(str(markdown2.markdown(cls.__doc__)))  # type: ignore
+                # Dedent the docstring so markdown renders correctly
+                clean_doc = inspect.cleandoc(cls.__doc__)
+                # Render markdown with common extras
+                html = markdown2.markdown(clean_doc, extras=["fenced-code-blocks", "tables", "break-on-newline"])
+                docs.append(str(html))  # type: ignore
         return docs
 
     def get_banks_status(self) -> list[dict[str, Any]]:
@@ -133,6 +150,9 @@ starling:
     @extension_endpoint("sync", methods=["POST"])
     def sync(self) -> Any:
         try:
+            if os.environ.get("FAVA_TESTING") == "1":
+                return jsonify({"status": "error", "message": "Test mode: Mocked sync error to prevent API calls."})
+
             data = request.json
             if data is None:
                 raise ValueError("No JSON payload provided.")
@@ -161,6 +181,7 @@ starling:
     @extension_endpoint("generate", methods=["POST"])
     def generate(self) -> Any:
         try:
+            log.info("Generating beancount file...")
             data = request.json
             if data is None:
                 raise ValueError("No JSON payload provided.")

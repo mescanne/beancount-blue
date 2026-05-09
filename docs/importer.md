@@ -61,7 +61,7 @@ python -m beancount_blue.importer.cli train --settings settings.yaml --ledger ma
     options:
       show_root_heading: true
 
-::: beancount_blue.importer.starling_importer.StarlingImporter
+::: beancount_blue.importer.starling.StarlingImporter
     options:
       show_root_heading: true
 

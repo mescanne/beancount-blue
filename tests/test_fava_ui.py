@@ -1,17 +1,23 @@
+import os
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
 def fava_server():
     """Starts a local Fava server for the duration of the test module."""
     port = 5005
+    test_fava_dir = Path(__file__).parent / "test_fava"
     # Use the test ledger provided in the repository
     fava_proc = subprocess.Popen(  # noqa: S603, S607
-        ["uv", "run", "fava", "test_fava/test_ledger.beancount", "--port", str(port)],  # noqa: S607
+        ["uv", "run", "fava", str(test_fava_dir / "test_ledger.beancount"), "--port", str(port)],  # noqa: S607
+        env={**os.environ, "PYTHONPATH": str(Path.cwd()), "FAVA_TESTING": "1"},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -24,10 +30,10 @@ def fava_server():
 
 def test_extension_ui_loads(page: Page, fava_server: str):
     """
-    Verifies that the BeancountBlue extension UI loads correctly,
+    Verifies that the BankSync extension UI loads correctly,
     the JSON editor renders without infinite loops, and 'Add' buttons are present.
     """
-    target_url = f"{fava_server}/test-ledger/extension/BeancountBlue/"
+    target_url = f"{fava_server}/test-ledger/extension/BankSync/"
 
     # Track console errors
     errors = []
@@ -37,7 +43,7 @@ def test_extension_ui_loads(page: Page, fava_server: str):
     page.goto(target_url, wait_until="networkidle")
 
     # 1. Verify basic page structure
-    expect(page.get_by_role("heading", name="Bank Sync", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Bank Sync Dashboard")).to_be_visible()
 
     # 2. Verify JSON Editor renders (it's inside a details tag)
     print("Expanding Settings & API Configuration...")
@@ -64,7 +70,7 @@ def test_extension_ui_loads(page: Page, fava_server: str):
 
 def test_sync_button_interaction(page: Page, fava_server: str):
     """Verifies that clicking the Sync button triggers an action and shows an alert."""
-    target_url = f"{fava_server}/test-ledger/extension/BeancountBlue/"
+    target_url = f"{fava_server}/test-ledger/extension/BankSync/"
     page.goto(target_url, wait_until="networkidle")
 
     # Click the first 'Sync' button in the dashboard table

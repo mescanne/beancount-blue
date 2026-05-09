@@ -64,6 +64,9 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
     cache_data: str | None = Field(
         None, description="File path to the compressed tar.gz file where the API state is cached."
     )
+    interactive_auth: bool = Field(
+        False, exclude=True, description="Allow interactive CLI auth flows (like input() or local webservers)."
+    )
 
     # Predictor options
     auto_predict: bool = Field(False, description="Enable the ML predictor to guess payees and counter_accounts.")

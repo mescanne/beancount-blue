@@ -4,8 +4,13 @@ install: ## Install the virtual environment and install the pre-commit hooks
 	@uv sync
 	@uv run pre-commit install
 
+.PHONY: upgrade
+upgrade: ## Upgrade dependencies
+	@echo "🚀 Upgrading dependencies"
+	@uv lock --upgrade
+
 .PHONY: check
-check: lint test docs-test ## Run all CI/CD tests
+check: lint test integration-test docs-test ## Run all CI/CD tests
 
 .PHONY: lint
 lint: ## Run code quality tools.
@@ -16,12 +21,19 @@ lint: ## Run code quality tools.
 	@echo "🚀 Checking for obsolete dependencies: Running deptry"
 	@uv run deptry .
 	@echo "🚀 Checking for vulnerabilities: Running pip-audit"
-	@uv run pip-audit
+	@uv audit
 
 .PHONY: test
-test: ## Test the code with pytest
+test: ## Test the code with pytest (excluding integration)
 	@echo "🚀 Testing code: Running pytest"
-	@uv run python -m pytest --cov --cov-config=pyproject.toml --cov-report=xml
+	@uv run python -m pytest -m "not integration" --cov --cov-config=pyproject.toml --cov-report=xml
+
+.PHONY: integration-test
+integration-test: ## Run integration tests with pytest
+	@echo "🚀 Installing chromium"
+	@uv run playwright install chromium
+	@echo "🚀 Running integration tests: Running pytest"
+	@uv run python -m pytest -m "integration" --cov --cov-append --cov-config=pyproject.toml --cov-report=xml
 
 .PHONY: build
 build: clean-build ## Build wheel file

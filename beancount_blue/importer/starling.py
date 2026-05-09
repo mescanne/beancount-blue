@@ -162,7 +162,7 @@ class StarlingImporter(APIImporter[StarlingData]):
     5. **Configure Fava:** Paste this token into the `personal_access_token` field below.
     """
 
-    importer_name: Literal["starling"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    importer_name: Literal["starling"] = "starling"  # pyright: ignore[reportIncompatibleVariableOverride]
 
     personal_access_token: SecretStr = Field(..., description="Starling Personal Access Token")
     # For API access updating

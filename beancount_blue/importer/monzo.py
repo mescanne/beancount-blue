@@ -65,11 +65,13 @@ class CustomMonzoAPI(MonzoAPI):
 
     @classmethod
     def auth_from_state_or_cli(
-        cls, token_state: dict[str, Any], client_id: str, client_secret: str
+        cls, token_state: dict[str, Any], client_id: str, client_secret: str, interactive_auth: bool = True
     ) -> tuple[CustomMonzoAPI, bool]:
 
         # If it's fresh, just construct it fresh
         if "access_token" not in token_state:
+            if not interactive_auth:
+                raise MonzoAuthError("Authorization missing and interactive_auth is disabled. Run via CLI.")
             return cls.auth_from_cli(token_state, client_id, client_secret), True
 
         # Try it out -- if it fails, do it fresh
@@ -79,6 +81,8 @@ class CustomMonzoAPI(MonzoAPI):
             monzo_api.whoami()
         except (OAuthError, NoSettingsFile):
             log.exception("Error")
+            if not interactive_auth:
+                raise MonzoAuthError("Authorization expired and interactive_auth is disabled. Run via CLI.") from None
             return cls.auth_from_cli(token_state, client_id, client_secret), True
         else:
             return monzo_api, False
@@ -300,8 +304,10 @@ class MonzoData(BaseModel):
     token: dict[str, Any] = {}
     accounts: dict[str, MonzoAccountData] = {}
 
-    def refresh(self, client_id: str, client_secret: str) -> None:
-        monzo_api, newClient = CustomMonzoAPI.auth_from_state_or_cli(self.token, client_id, client_secret)
+    def refresh(self, client_id: str, client_secret: str, interactive_auth: bool = True) -> None:
+        monzo_api, newClient = CustomMonzoAPI.auth_from_state_or_cli(
+            self.token, client_id, client_secret, interactive_auth=interactive_auth
+        )
 
         days_ago = None if newClient else 89
 
@@ -340,7 +346,7 @@ class MonzoImporter(APIImporter[MonzoData]):
     *Note: Monzo requires you to re-authenticate API access via the app every 90 days. If your sync fails with an authentication error, you may need to approve the connection in your Monzo app.*
     """
 
-    importer_name: Literal["monzo"]  # pyright: ignore[reportIncompatibleVariableOverride]
+    importer_name: Literal["monzo"] = "monzo"  # pyright: ignore[reportIncompatibleVariableOverride]
 
     units: int = 2
     client_id: str = Field(description="Monzo Client ID")
@@ -349,7 +355,7 @@ class MonzoImporter(APIImporter[MonzoData]):
     @final
     @override
     def refresh(self, state: MonzoData) -> None:
-        state.refresh(self.client_id, self.client_secret.get_secret_value())
+        state.refresh(self.client_id, self.client_secret.get_secret_value(), interactive_auth=self.interactive_auth)
 
     @final
     @override

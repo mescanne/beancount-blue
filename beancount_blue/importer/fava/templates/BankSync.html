@@ -1,0 +1,215 @@
+<!-- JSON Editor from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@json-editor/json-editor@latest/dist/jsoneditor.min.js"></script>
+
+<style>
+    #alerts-container .alert {
+        padding: 12px 16px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    @keyframes slideIn {
+        from { transform: translateY(-10px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    .alert-success {
+        background-color: var(--color-background-positive, #2ecc71);
+        color: #fff;
+    }
+    .alert-error {
+        background-color: var(--color-background-negative, #e74c3c);
+        color: #fff;
+    }
+    .alert-info {
+        background-color: var(--color-sidebar-background, #fffbe6);
+        color: var(--color-sidebar-text, #856404);
+        border: 1px solid var(--color-sidebar-border, #ffeeba);
+    }
+    .alert .handoff-btn {
+        background-color: var(--color-button-bg, #007bff);
+        color: var(--color-button-text, #fff);
+        padding: 4px 12px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 15px;
+        display: inline-block;
+        transition: opacity 0.2s;
+    }
+    .alert .handoff-btn:hover {
+        opacity: 0.8;
+        color: #fff;
+    }
+
+    .bank-icon {
+        margin-right: 8px;
+        font-size: 1.2em;
+    }
+    .btn-sync {
+        margin-right: 4px;
+    }
+    table.sortable th {
+        text-align: left;
+    }
+
+    /* Fix overlapping boxes in JSON Editor */
+    #json-editor-container {
+        margin-top: 1em;
+        padding: 1.5em;
+        background: var(--color-background, #fff);
+        border: 1px solid var(--color-sidebar-border, #ddd);
+        border-radius: 4px;
+        color: var(--color-text, #333);
+    }
+
+    /* JSON Editor Specific Fixes to prevent overlapping */
+    #json-editor-container * {
+        box-sizing: border-box;
+    }
+    .je-object__container, .je-indented-panel {
+        margin-bottom: 1.5em !important;
+        padding: 1.5em !important;
+        border: 1px solid var(--color-sidebar-border, #ddd) !important;
+        background: var(--color-background-item, #fdfdfd) !important;
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        clear: both !important;
+    }
+    .je-tab-content {
+        padding: 1.5em !important;
+        border: 1px solid var(--color-sidebar-border, #ddd) !important;
+        border-top: none !important;
+        background: var(--color-background, #fff) !important;
+        clear: both;
+    }
+    .je-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        border-bottom: 1px solid var(--color-sidebar-border, #ddd);
+    }
+    .je-tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        margin-bottom: -1px;
+        background: var(--color-background-item, #f5f5f5);
+        border-radius: 4px 4px 0 0;
+        margin-right: 2px;
+    }
+    .je-tab.active {
+        background: var(--color-background, #fff);
+        border: 1px solid var(--color-sidebar-border, #ddd);
+        border-bottom-color: var(--color-background, #fff);
+        font-weight: bold;
+    }
+
+    /* Input styling for JSON Editor */
+    #json-editor-container input, #json-editor-container select, #json-editor-container textarea {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0 15px 0;
+        border: 1px solid var(--color-sidebar-border, #ccc);
+        border-radius: 3px;
+        background: var(--color-background, #fff);
+        color: var(--color-text, #333);
+    }
+    #json-editor-container label {
+        display: block;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+    #json-editor-container button {
+        margin: 5px 2px;
+    }
+
+    /* Documentation Styling */
+    .importer-docs h3 { margin-top: 0; border-bottom: 1px solid var(--color-sidebar-border); padding-bottom: 0.5em; }
+    .importer-docs code { background: var(--color-background-item, #eee); padding: 2px 4px; border-radius: 3px; }
+    .importer-docs pre { background: var(--color-background-item, #eee); padding: 1em; border-radius: 4px; overflow-x: auto; }
+    .importer-docs ul, .importer-docs ol { padding-left: 2em; }
+</style>
+
+<div class="headerline">
+    <h3>Bank Sync Dashboard</h3>
+</div>
+
+<div id="alerts-container"></div>
+
+<!-- Primary Dashboard -->
+<table class="sortable">
+    <thead>
+        <tr>
+            <th>Bank</th>
+            <th>Configuration Name</th>
+            <th class="actions">Available Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for b in extension.get_banks_status() %}
+        <tr>
+            <td>
+                <span class="bank-icon">
+                    {% if b.bank == 'monzo' %}🏦{% elif b.bank == 'starling' %}🐦{% elif b.bank == 'truelayer' %}🔌{% else %}💰{% endif %}
+                </span>
+                {{ b.bank.capitalize() }}
+            </td>
+            <td><strong>{{ b.name }}</strong></td>
+            <td class="actions">
+                <button class="btn btn-primary btn-sync" data-bank="{{ b.bank }}" data-idx="{{ b.idx }}">
+                    Sync API
+                </button>
+                <button class="btn btn-generate" data-bank="{{ b.bank }}" data-idx="{{ b.idx }}">
+                    Generate Beancount
+                </button>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="3" style="text-align: center; color: var(--color-text-lighter); padding: 3em;">
+                <p>No API configurations found in <code>importers.yaml</code>.</p>
+                <p>Expand the settings below to add your first bank connection.</p>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<br>
+
+<!-- Documentation Area -->
+<details>
+    <summary>📖 API Setup Instructions</summary>
+    <div style="padding: 1.5em; background-color: var(--color-background);" class="article importer-docs">
+        {% for doc in extension.get_docs() %}
+            <div style="margin-bottom: 3em;">
+                {{ doc | safe }}
+            </div>
+            {% if not loop.last %}<hr style="border-top: 2px solid var(--color-sidebar-border); margin: 3em 0;">{% endif %}
+        {% endfor %}
+    </div>
+</details>
+
+<!-- Secondary Configuration Area -->
+<details>
+    <summary>⚙️ Settings &amp; API Configuration</summary>
+    <div style="padding: 1em; background-color: var(--color-background);">
+        <div id="json-editor-container"></div>
+        <div style="margin-top: 20px;">
+            <button id="btn-save-config" class="btn btn-primary">Save Configuration</button>
+        </div>
+    </div>
+</details>
+
+<script>
+    // Pass config data to the JS module
+    window.beancountBlueConfig = {{ extension.get_config_json() | safe }};
+</script>
