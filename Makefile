@@ -21,7 +21,7 @@ lint: ## Run code quality tools.
 	@echo "🚀 Checking for obsolete dependencies: Running deptry"
 	@uv run deptry .
 	@echo "🚀 Checking for vulnerabilities: Running pip-audit"
-	@uv audit
+	@uv run pip-audit
 
 .PHONY: test
 test: ## Test the code with pytest (excluding integration)

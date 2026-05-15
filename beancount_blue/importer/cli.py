@@ -135,7 +135,20 @@ def app():
         predictor = TransactionPredictor(Path(config.predict_model_path))
         entries, _, _ = load_file(str(ledger_path))
         anchors = config.predict_anchor_accounts or config.anchor_accounts
-        predictor.train(entries, anchors, config.predict_skip_accounts, config.predict_remap_accounts)
+
+        try:
+            data = config.load_data()
+            imported_entries = config.extract(data)  # type: ignore[arg-type]
+        except Exception:
+            imported_entries = None
+
+        predictor.train(
+            entries,
+            anchors,
+            config.predict_skip_accounts,
+            config.predict_remap_accounts,
+            imported_entries=imported_entries,
+        )
 
     elif args.command == "explain":
         from beancount_blue.importer.predictor import TransactionPredictor
@@ -145,20 +158,20 @@ def app():
 
         print(f"\n--- Diagnosing ML Prediction for '{args.text}' ---\n")
         print("POSTING (Counter-Account) PREDICTION:")
-        posting_res = predictor.posting_predictor.explain(args.text)
-        print(f"Tokens extracted: {posting_res.get('tokens')}")
-        for c in posting_res.get("top_classes", []):
-            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")
-            for w, s in c["word_scores"].items():
-                print(f"    - '{w}': matched {s['count']} times")
+        posting_res = predictor.posting_predictor.explain(args.text)  # type: ignore[reportUnknownMemberType]
+        print(f"Tokens extracted: {posting_res.get('tokens')}")  # type: ignore[reportUnknownMemberType]
+        for c in posting_res.get("top_classes", []):  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")  # type: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            for w, s in c["word_scores"].items():  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+                print(f"    - '{w}': matched {s['count']} times")  # type: ignore[reportUnknownArgumentType]
 
         print("\nPAYEE PREDICTION:")
-        payee_res = predictor.payee_predictor.explain(args.text)
-        print(f"Tokens extracted: {payee_res.get('tokens')}")
-        for c in payee_res.get("top_classes", []):
-            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")
-            for w, s in c["word_scores"].items():
-                print(f"    - '{w}': matched {s['count']} times")
+        payee_res = predictor.payee_predictor.explain(args.text)  # type: ignore[reportUnknownMemberType]
+        print(f"Tokens extracted: {payee_res.get('tokens')}")  # type: ignore[reportUnknownMemberType]
+        for c in payee_res.get("top_classes", []):  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            print(f"  [{c['confidence'] * 100:0.1f}%] {c['label']} (log_prob: {c['log_prob']:.2f})")  # type: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+            for w, s in c["word_scores"].items():  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
+                print(f"    - '{w}': matched {s['count']} times")  # type: ignore[reportUnknownArgumentType]
         print("")
 
     else:

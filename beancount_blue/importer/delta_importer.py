@@ -215,7 +215,13 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
             if retrain and self.predict_ledger_path:
                 entries, _, _ = load_file(self.predict_ledger_path)
                 anchors = self.predict_anchor_accounts or self.anchor_accounts
-                predictor.train(entries, anchors, self.predict_skip_accounts, self.predict_remap_accounts)
+                predictor.train(
+                    entries,
+                    anchors,
+                    self.predict_skip_accounts,
+                    self.predict_remap_accounts,
+                    imported_entries=imported_entries,
+                )
             else:
                 predictor.load()
 

@@ -1,126 +1,110 @@
-import json
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
 import logging
-import math
-import re
-from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import joblib  # type: ignore
+import numpy as np  # type: ignore
 from beancount.core.data import Transaction
+from sklearn.feature_extraction.text import CountVectorizer  # type: ignore
+from sklearn.linear_model import SGDClassifier  # type: ignore
+from sklearn.pipeline import Pipeline  # type: ignore
 
 from .importer import ImportedTransaction
 
 log = logging.getLogger(__name__)
 
 
-def tokenize(text: str | None) -> list[str]:
-    """Tokenizes text into lowercase words, stripping non-alphanumeric chars."""
-    if not text:
-        return []
-    text = str(text).lower()
-    return [w for w in re.split(r"\W+", text) if len(w) > 1]
-
-
-class NaiveBayesPredictor:
-    """A lightweight Multinomial Naive Bayes classifier for text."""
+class LogisticRegressionPredictor:
+    """A lightweight Logistic Regression classifier for text using scikit-learn."""
 
     def __init__(self) -> None:
-        self.classes: dict[str, int] = defaultdict(int)
-        self.word_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        self.class_word_totals: dict[str, int] = defaultdict(int)
-        self.vocab: set[str] = set()
-        self.total_docs: int = 0
+        self.pipeline = Pipeline([
+            ("vect", CountVectorizer(token_pattern=r"(?u)\b\w+\b", lowercase=True)),  # noqa: S106
+            ("clf", SGDClassifier(loss="log_loss", max_iter=1000, tol=1e-3, penalty="l2", alpha=1e-4, random_state=42)),
+        ])
+        self.is_trained = False
 
     def train(self, docs: list[str], labels: list[str]) -> None:
-        self.__init__()  # reset
-        for doc, label in zip(docs, labels, strict=True):
-            log.info(f"Mapping {label} to {doc}")
-            self.classes[label] += 1
-            self.total_docs += 1
-            words = tokenize(doc)
-            for w in words:
-                self.word_counts[label][w] += 1
-                self.class_word_totals[label] += 1
-                self.vocab.add(w)
+        if not docs:
+            return
+
+        valid_docs: list[str] = []
+        valid_labels: list[str] = []
+        for d, lbl in zip(docs, labels, strict=True):
+            if lbl:
+                valid_docs.append(d)
+                valid_labels.append(lbl)
+
+        # SGDClassifier needs at least 2 classes
+        if len(set(valid_labels)) < 2:
+            valid_docs.append("dummy doc for single class fallback")
+            valid_labels.append("dummy_label")
+
+        self.pipeline.fit(valid_docs, valid_labels)
+        self.is_trained = True
 
     def predict(self, doc: str) -> tuple[str | None, float]:
-        if not self.classes:
+        if not self.is_trained:
             return None, 0.0
 
-        words = tokenize(doc)
-        best_label = None
-        best_log_prob = -float("inf")
-        vocab_size = len(self.vocab)
-        log_probs: dict[str, float] = {}
-
-        for label, count in self.classes.items():
-            log_prob = math.log(count / self.total_docs)
-            for w in words:
-                # Laplace smoothing
-                w_count = self.word_counts[label].get(w, 0)
-                prob = (w_count + 1) / (self.class_word_totals[label] + vocab_size)
-                log_prob += math.log(prob)
-            log_probs[label] = log_prob
-
-            if log_prob > best_log_prob:
-                best_log_prob = log_prob
-                best_label = label
-
-        if not best_label:
-            return None, 0.0
-
-        # Softmax to compute confidence
-        max_lp = max(log_probs.values())
         try:
-            sum_exp = sum(math.exp(lp - max_lp) for lp in log_probs.values())
-            confidence = math.exp(log_probs[best_label] - max_lp) / sum_exp
-        except OverflowError:
-            confidence = 1.0
+            probs = self.pipeline.predict_proba([doc])[0]
+        except Exception:
+            return None, 0.0
 
-        return best_label, confidence
+        max_idx = int(np.argmax(probs))
+        best_label = self.pipeline.classes_[max_idx]
+        confidence = probs[max_idx]
+
+        # Ignore dummy label
+        if best_label == "dummy_label":
+            return None, 0.0
+
+        return str(best_label), float(confidence)
 
     def explain(self, doc: str) -> dict[str, Any]:
         """Returns detailed scoring for the document to diagnose predictions."""
-        if not self.classes:
+        if not self.is_trained:
             return {}
 
-        words = tokenize(doc)
-        vocab_size = len(self.vocab)
-        class_scores: dict[str, Any] = {}
+        vect = self.pipeline.named_steps["vect"]
+        clf = self.pipeline.named_steps["clf"]
 
-        for label, count in self.classes.items():
-            prior = math.log(count / self.total_docs)
-            word_scores: dict[str, Any] = {}
-            total_log_prob = prior
-            for w in words:
-                w_count = self.word_counts[label].get(w, 0)
-                prob = (w_count + 1) / (self.class_word_totals[label] + vocab_size)
-                lp = math.log(prob)
-                word_scores[w] = {"count": w_count, "log_prob": lp}
-                total_log_prob += lp
-            class_scores[label] = {
-                "total_log_prob": total_log_prob,
-                "prior_log_prob": prior,
-                "word_scores": word_scores,
-            }
+        words = vect.build_analyzer()(doc)
+        tokens = list(set(words).intersection(vect.vocabulary_.keys()))
 
-        sorted_classes = sorted(class_scores.items(), key=lambda x: x[1]["total_log_prob"], reverse=True)
-
-        max_lp = sorted_classes[0][1]["total_log_prob"] if sorted_classes else 0
         try:
-            sum_exp = sum(math.exp(c["total_log_prob"] - max_lp) for _, c in sorted_classes)
-        except OverflowError:
-            sum_exp = float("inf")
+            probs = self.pipeline.predict_proba([doc])[0]
+        except Exception:
+            return {}
+
+        sorted_indices = np.argsort(probs)[::-1]
 
         results: list[dict[str, Any]] = []
-        for label, data in sorted_classes[:5]:
-            conf = math.exp(data["total_log_prob"] - max_lp) / sum_exp if sum_exp != float("inf") else 0.0
+        for idx in sorted_indices[:5]:
+            label = clf.classes_[idx]
+            if label == "dummy_label":
+                continue
+
+            conf = probs[idx]
+
+            # Find feature contributions
+            feature_scores: dict[str, Any] = {}
+            c_coef = clf.coef_[idx] if len(clf.classes_) > 2 else (clf.coef_[0] if idx == 1 else -clf.coef_[0])
+
+            for w in tokens:
+                f_idx = vect.vocabulary_[w]
+                score = c_coef[f_idx]
+                if score != 0:
+                    feature_scores[w] = {"count": words.count(w), "log_prob": float(score)}
+
             results.append({
-                "label": label,
-                "confidence": conf,
-                "log_prob": data["total_log_prob"],
-                "word_scores": data["word_scores"],
+                "label": str(label),
+                "confidence": float(conf),
+                "log_prob": float(np.log(conf + 1e-10)),
+                "word_scores": feature_scores,
             })
 
         return {"tokens": words, "top_classes": results}
@@ -131,8 +115,8 @@ class TransactionPredictor:
 
     def __init__(self, model_path: Path):
         self.model_path = model_path
-        self.posting_predictor = NaiveBayesPredictor()
-        self.payee_predictor = NaiveBayesPredictor()
+        self.posting_predictor = LogisticRegressionPredictor()
+        self.payee_predictor = LogisticRegressionPredictor()
 
     def train(
         self,
@@ -140,6 +124,7 @@ class TransactionPredictor:
         anchor_accounts: list[str],
         skip_accounts: list[str],
         remap_accounts: dict[str, str] | None = None,
+        imported_entries: list[ImportedTransaction] | None = None,
     ) -> None:
         log.info(f"Training predictors using anchors: {anchor_accounts}")
         posting_docs: list[str] = []
@@ -151,6 +136,11 @@ class TransactionPredictor:
         anchor_set = set(anchor_accounts)
         remap = remap_accounts or {}
 
+        imp_index = {}
+        if imported_entries:
+            for imp_tx in imported_entries:
+                imp_index[imp_tx.id] = imp_tx
+
         count = 0
         for entry in entries:
             if not isinstance(entry, Transaction):
@@ -160,17 +150,37 @@ class TransactionPredictor:
             if not has_anchor:
                 continue
 
-            # Symmetrical feature extraction from Beancount ledger metadata
-            cat = entry.meta.get("category", "") if entry.meta else ""
+            # Attempt to map to raw API data via unique IDs
+            t_ids = set(entry.links)
+            if entry.meta and "id" in entry.meta:
+                t_ids.add(entry.meta["id"])
+
+            imp_tx = None
+            for tid in t_ids:
+                if tid in imp_index:
+                    imp_tx = imp_index[tid]
+                    break
 
             doc_parts: list[str] = []
-            if entry.payee:
-                doc_parts.append(entry.payee)
-            if entry.narration:
-                doc_parts.append(entry.narration)
-            if cat:
-                doc_parts.append(str(cat))
-            doc = " ".join(doc_parts)
+            if imp_tx:
+                if imp_tx.payee:
+                    doc_parts.append(str(imp_tx.payee))
+                if imp_tx.narration:
+                    doc_parts.append(str(imp_tx.narration))
+                if imp_tx.category:
+                    doc_parts.append(str(imp_tx.category))
+                doc = " ".join(doc_parts)
+            else:
+                # Symmetrical feature extraction from Beancount ledger metadata as fallback
+                cat = entry.meta.get("category", "") if entry.meta else ""
+
+                if entry.payee:
+                    doc_parts.append(entry.payee)
+                if entry.narration:
+                    doc_parts.append(entry.narration)
+                if cat:
+                    doc_parts.append(str(cat))
+                doc = " ".join(doc_parts)
 
             # Predict Posting
             other_accounts = [
@@ -185,14 +195,7 @@ class TransactionPredictor:
 
             # Predict Payee
             if entry.payee:
-                p_doc_parts: list[str] = []
-                if entry.narration:
-                    p_doc_parts.append(entry.narration)
-                if cat:
-                    p_doc_parts.append(str(cat))
-                p_doc = " ".join(p_doc_parts)
-
-                payee_docs.append(p_doc)
+                payee_docs.append(doc)
                 payee_labels.append(entry.payee)
 
             count += 1
@@ -207,11 +210,11 @@ class TransactionPredictor:
         for tx in imp_txns:
             doc_parts: list[str] = []
             if tx.payee:
-                doc_parts.append(tx.payee)
+                doc_parts.append(str(tx.payee))
             if tx.narration:
-                doc_parts.append(tx.narration)
+                doc_parts.append(str(tx.narration))
             if tx.category:
-                doc_parts.append(tx.category)
+                doc_parts.append(str(tx.category))
             doc = " ".join(doc_parts)
 
             # 1. Posting Prediction
@@ -225,62 +228,34 @@ class TransactionPredictor:
                     predictions_made += 1
 
             # 2. Payee Prediction
-            if tx.narration or tx.category:
-                p_doc_parts: list[str] = []
-                if tx.narration:
-                    p_doc_parts.append(tx.narration)
-                if tx.category:
-                    p_doc_parts.append(tx.category)
-                p_doc = " ".join(p_doc_parts)
-
-                p_label, p_conf = self.payee_predictor.predict(p_doc)
-                if p_label and p_conf >= min_confidence:
-                    tx.payee = p_label
-                    tx.meta["conf_payee"] = f"{p_label} (confidence {p_conf * 100:.0f}%)"
-                    tx.meta["conf_debug_payee"] = p_doc
+            p_label, p_conf = self.payee_predictor.predict(doc)
+            if p_label and p_conf >= min_confidence:
+                tx.payee = p_label
+                tx.meta["conf_payee"] = f"{p_label} (confidence {p_conf * 100:.0f}%)"
+                tx.meta["conf_debug_payee"] = doc
 
         log.info(f"Applied predictions to {predictions_made} / {len(imp_txns)} transactions.")
 
     def save(self) -> None:
         data = {
-            "postings": {
-                "classes": dict(self.posting_predictor.classes),
-                "word_counts": {k: dict(v) for k, v in self.posting_predictor.word_counts.items()},
-                "class_word_totals": dict(self.posting_predictor.class_word_totals),
-                "vocab": list(self.posting_predictor.vocab),
-                "total_docs": self.posting_predictor.total_docs,
-            },
-            "payees": {
-                "classes": dict(self.payee_predictor.classes),
-                "word_counts": {k: dict(v) for k, v in self.payee_predictor.word_counts.items()},
-                "class_word_totals": dict(self.payee_predictor.class_word_totals),
-                "vocab": list(self.payee_predictor.vocab),
-                "total_docs": self.payee_predictor.total_docs,
-            },
+            "postings": self.posting_predictor,
+            "payees": self.payee_predictor,
         }
-        with self.model_path.open("w") as f:
-            json.dump(data, f)
+        with self.model_path.open("wb") as f:
+            joblib.dump(data, f)
 
     def load(self) -> None:
         if not self.model_path.exists():
             return
-        with self.model_path.open("r") as f:
-            data = json.load(f)
 
-        p1 = data["postings"]
-        self.posting_predictor.classes = defaultdict(int, p1["classes"])
-        self.posting_predictor.word_counts = defaultdict(
-            lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in p1["word_counts"].items()}
-        )
-        self.posting_predictor.class_word_totals = defaultdict(int, p1["class_word_totals"])
-        self.posting_predictor.vocab = set(p1["vocab"])
-        self.posting_predictor.total_docs = p1["total_docs"]
+        try:
+            with self.model_path.open("rb") as f:
+                data = joblib.load(f)
 
-        p2 = data["payees"]
-        self.payee_predictor.classes = defaultdict(int, p2["classes"])
-        self.payee_predictor.word_counts = defaultdict(
-            lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in p2["word_counts"].items()}
-        )
-        self.payee_predictor.class_word_totals = defaultdict(int, p2["class_word_totals"])
-        self.payee_predictor.vocab = set(p2["vocab"])
-        self.payee_predictor.total_docs = p2["total_docs"]
+            if isinstance(data, dict) and "postings" in data and "payees" in data:
+                self.posting_predictor = data["postings"]
+                self.payee_predictor = data["payees"]
+            else:
+                log.warning("Invalid model format, triggering retrain on next pass.")
+        except Exception:
+            log.warning("Failed to load model (likely old JSON format), triggering retrain on next pass.")
