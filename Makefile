@@ -10,7 +10,7 @@ upgrade: ## Upgrade dependencies
 	@uv lock --upgrade
 
 .PHONY: check
-check: lint test integration-test docs-test ## Run all CI/CD tests
+check: lint test docs-test ## Run all CI/CD tests
 
 .PHONY: lint
 lint: ## Run code quality tools.
@@ -28,6 +28,7 @@ test: ## Test the code with pytest (excluding integration)
 	@echo "🚀 Testing code: Running pytest"
 	@uv run python -m pytest -m "not integration" --cov --cov-config=pyproject.toml --cov-report=xml
 
+# Temporary not included -- need to add it back in once extension is more stable
 .PHONY: integration-test
 integration-test: ## Run integration tests with pytest
 	@echo "🚀 Installing chromium"

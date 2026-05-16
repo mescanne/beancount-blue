@@ -356,6 +356,17 @@ class TrueLayerImporter(APIImporter[TrueLayerData]):
 
     @final
     @override
+    def extract_available_balances(self, state: TrueLayerData) -> dict[str, tuple[Decimal, str]]:
+        res: dict[str, tuple[Decimal, str]] = {}
+        for account_id, bal in state.raw_balances.items():
+            # Use available balance, fallback to current if available is missing
+            amount_val = bal.available if bal.available is not None else bal.current
+            if amount_val is not None:
+                res[account_id] = (Decimal(str(amount_val)), bal.currency)
+        return res
+
+    @final
+    @override
     def extract(self, state: TrueLayerData) -> list[ImportedTransaction]:
         entries: list[ImportedTransaction] = []
 

@@ -48,6 +48,10 @@ class AccountsResponse(BaseModel):
     accounts: list[AccountV2]
 
 
+class BalanceResponse(BaseModel):
+    effectiveBalance: CurrencyAndAmount
+
+
 class SavingsGoals(BaseModel):
     savingsGoalUid: UUID
     name: str
@@ -133,6 +137,7 @@ class StarlingData(BaseModel):
     account_spending_spaces: dict[UUID, list[SpendingSpace]] = Field(default_factory=dict)
     account_savings_spaces: dict[UUID, list[SavingsGoals]] = Field(default_factory=dict)
     feed_items: dict[UUID, FeedItem] = Field(default_factory=dict)
+    balances: dict[UUID, CurrencyAndAmount] = Field(default_factory=dict)
 
 
 def cleanup_string(s: str | None) -> str:
@@ -220,6 +225,12 @@ class StarlingImporter(APIImporter[StarlingData]):
             for account in accounts:
                 state.accounts[account.accountUid] = account
 
+                # Get balance
+                balance_response = client.get(f"/api/v2/accounts/{account.accountUid}/balance")
+                _ = balance_response.raise_for_status()
+                bal = BalanceResponse.model_validate(balance_response.json())
+                state.balances[account.accountUid] = bal.effectiveBalance
+
                 # Get spaces
                 space_response = client.get(f"/api/v2/account/{account.accountUid}/spaces")
                 _ = space_response.raise_for_status()
@@ -252,6 +263,15 @@ class StarlingImporter(APIImporter[StarlingData]):
 
                     for item in feed_items:
                         state.feed_items[item.feedItemUid] = item
+
+    @final
+    @override
+    def extract_available_balances(self, state: StarlingData) -> dict[str, tuple[Decimal, str]]:
+        res: dict[str, tuple[Decimal, str]] = {}
+        for accountUid, bal in state.balances.items():
+            amount = Decimal(bal.minorUnits) / 100
+            res[str(accountUid)] = (amount, bal.currency)
+        return res
 
     @final
     @override

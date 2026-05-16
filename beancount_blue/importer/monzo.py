@@ -363,5 +363,19 @@ class MonzoImporter(APIImporter[MonzoData]):
 
     @final
     @override
+    def extract_available_balances(self, state: MonzoData) -> dict[str, tuple[Decimal, str]]:
+        res: dict[str, tuple[Decimal, str]] = {}
+        for account_id, account_data in state.accounts.items():
+            if not account_data.balances:
+                continue
+            highest_ts = max(account_data.balances.keys())
+            bal = account_data.balances[highest_ts]
+
+            amount = Decimal(bal.balance) / pow(10, self.units)
+            res[account_id] = (amount, bal.currency)
+        return res
+
+    @final
+    @override
     def extract(self, state: MonzoData) -> list[ImportedTransaction]:
         return state.extract(units=self.units)

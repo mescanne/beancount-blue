@@ -135,6 +135,44 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         state: BaseModel to extract the transactions from.
         """
 
+    @abstractmethod
+    def extract_available_balances(self, state: APIData) -> dict[str, tuple[Decimal, str]]:
+        """Return a mapping of raw API account IDs to (available_balance, currency).
+        Note: This represents the bank's available balance (often including pending transactions),
+        not the cleared ledger balance.
+        """
+
+    def format_available_balances(self, state: APIData, acct: str | None = None) -> str | None:
+        """Translates raw available balances into a human-readable string using account_map."""
+        raw_balances = self.extract_available_balances(state)
+        if not raw_balances:
+            return None
+
+        lines: list[str] = []
+        # Translate keys using account_map
+        m = {k: (v.name if isinstance(v, AccountConfig) else v) for k, v in (self.account_map or {}).items()}
+        sorted_keys = sorted(m.keys(), key=len, reverse=True)
+
+        for raw_id, (amount, currency) in raw_balances.items():
+            account_name = raw_id
+            for k in sorted_keys:
+                if account_name == k or account_name.startswith(k + ":"):
+                    account_name = account_name.replace(k, m[k], 1)
+                    break
+
+            if acct:
+                if account_name != acct:
+                    continue
+
+                return f"{amount:,.2f} {currency}"
+
+            lines.append(f"{account_name}: {amount:,.2f} {currency} (Available)")
+
+        if not lines:
+            return None
+
+        return "\n".join(sorted(lines))
+
     def load_data(self) -> APIData:
         api_data = self.get_types()
         if self.cache_data:

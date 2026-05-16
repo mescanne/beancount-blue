@@ -75,7 +75,9 @@ def app():
     subparsers = parser.add_subparsers(dest="command", required=True, help="Action to perform")
 
     # Command: run
-    _ = subparsers.add_parser("sync", help="Refresh data from the API and save state")
+    sync_parser = subparsers.add_parser("sync", help="Refresh data from the API and save state")
+    sync_parser.add_argument("--ntfy", type=str, help="ntfy token for sending available balance updates")
+    sync_parser.add_argument("--ntfy_acct", type=str, help="ntfy account for balance updates")
     _ = subparsers.add_parser("beancount", help="Output imported transactions as Beancount directives")
     _ = subparsers.add_parser("dump", help="Dump the raw API state as JSON")
 
@@ -112,7 +114,14 @@ def app():
 
     if args.command == "sync":
         config.cache_only = False
-        _ = config.load_data()
+        data = config.load_data()
+
+        if getattr(args, "ntfy", None):
+            msg = config.format_available_balances(data)  # type: ignore[arg-type]
+            if msg:
+                from beancount_blue.importer.ntfy import push_message
+
+                push_message(title=config.importer_name.capitalize(), msg=msg, notify_token=args.ntfy)
 
     elif args.command == "beancount":
         config.cache_only = True
