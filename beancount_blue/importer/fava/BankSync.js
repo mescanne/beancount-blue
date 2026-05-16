@@ -43,11 +43,7 @@ export default {
         }
 
         function formatAccountName(acc) {
-            const parts = acc.split(':');
-            if (parts.length > 2) {
-                return parts.slice(-2).join(':');
-            }
-            return acc;
+            return acc; // Show full account name
         }
 
         function renderSidebar() {
@@ -119,6 +115,17 @@ export default {
                 row.classList.add('open');
                 document.getElementById('btn-expander-' + txIdx).classList.add('open');
             }
+        };
+
+        window.updateCounterAccount = function(idx, value) {
+            const tx = transactionsData[currentAccount][idx];
+            if (tx.postings.length > 1) {
+                tx.postings[1].account = value;
+            } else {
+                tx.postings.push({ account: value, amount: "", currency: "" });
+            }
+            // We don't need to re-render the grid immediately, just update the data model.
+            // If they open the postings view, it will reflect there.
         };
 
         window.updateTxField = function(idx, field, value) {
@@ -233,7 +240,7 @@ export default {
                                 <input type="text" value="${tx.narration}" placeholder="Narration" onchange="window.updateTxField(${idx}, 'narration', this.value)" style="font-size: 0.9em; color: var(--color-text-lighter); width: 100%; border:none; background:transparent; margin-top:2px;">
                             </td>
                             <td>
-                                <div style="font-weight: 500;">${displayAcc.split(':').slice(-2).join(':')}</div>
+                                <input type="text" value="${displayAcc}" placeholder="Counteraccount" onchange="window.updateCounterAccount(${idx}, this.value)" list="ch-accounts" style="font-weight: 500; width: 100%; border:none; background:transparent;">
                                 <div style="font-size: 0.85em; color: var(--color-text-lighter);">Confidence: ${confidencePct}%</div>
                             </td>
                             <td style="text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;">
@@ -243,6 +250,17 @@ export default {
                         <tr class="detail-row" id="detail-${idx}">
                             <td colspan="5">
                                 <div class="detail-content" style="padding: 15px; border-radius: 6px; background: var(--color-sidebar-background);">
+                                    <div style="margin-bottom: 10px;">
+                                        <strong>Original Metadata</strong>
+                                        <div style="margin-top: 5px; font-size: 0.85em; background: var(--color-background); padding: 8px; border: 1px solid var(--color-sidebar-border); border-radius: 4px;">
+                                            ${Object.entries(tx.raw_metadata || {}).map(([k, v]) => `
+                                                <div style="display: flex; margin-bottom: 4px; border-bottom: 1px solid var(--color-sidebar-border); padding-bottom: 2px;">
+                                                    <div style="width: 160px; font-weight: bold; color: var(--color-text-lighter);">${k}</div>
+                                                    <div style="flex: 1; word-break: break-all; font-family: monospace;">${v}</div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
                                     <div style="margin-bottom: 10px; display:flex; justify-content: space-between;">
                                         <strong>Postings</strong>
                                         <button class="btn" onclick="window.addPosting(${idx})" style="padding: 2px 8px; font-size: 0.85em;">+ Add Posting</button>
