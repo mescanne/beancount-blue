@@ -288,6 +288,10 @@ class MonzoAccountData(BaseModel):
         if self.account.closed:
             return []
 
+        # Skip rewards accounts
+        if getattr(self.account, "product_type", None) == "rewards":
+            return []
+
         # Hackish Monzo issues -- clean up the data
         self.cleanup_monzo()
 
