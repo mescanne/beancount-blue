@@ -4,7 +4,11 @@
 
 export default {
     init: async function() {
-        console.log("API Config Manager Initialized");
+        console.log("API Config Manager JS Module Loaded");
+    },
+
+    onExtensionPageLoad: async function() {
+        console.log("API Config Manager Page Loaded");
         const root = document.getElementById('api-config-root');
         if (!root) return;
 
@@ -13,6 +17,7 @@ export default {
         const configUrl = extBaseUrl + "config";
         const schemaUrl = extBaseUrl + "schema";
 
+        // Reset state for new DOM
         let currentFile = null;
         let editor = null;
         let schema = null;
