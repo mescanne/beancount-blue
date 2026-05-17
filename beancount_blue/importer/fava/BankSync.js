@@ -34,7 +34,13 @@ export default {
             await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv7.min.js');
         }
 
-        const ajv = new window.ajv7();
+        const ajv = new window.ajv7({ strict: false });
+        // Add dummy formats to prevent ajv from throwing on Pydantic's format keywords
+        ['date', 'date-time', 'uuid', 'uri', 'url', 'email', 'ipv4', 'ipv6'].forEach(fmt => {
+            try { ajv.addFormat(fmt, true); } catch(e) {}
+        });
+
+        let validateSchema = null;
 
         // Load initial sidebar data immediately
         loadDashboard();
@@ -65,8 +71,8 @@ export default {
 
             // Handle changes for validation
             editor.onDidChangeModelContent(() => {
-                validateYaml();
                 document.getElementById('btn-editor-save').disabled = false;
+                validateYaml();
             });
 
             // Load schema for validation
@@ -87,6 +93,11 @@ export default {
             try {
                 const res = await fetch(schemaUrl);
                 schema = await res.json();
+                try {
+                    validateSchema = ajv.compile(schema);
+                } catch(e) {
+                    console.warn("Failed to compile JSON schema:", e);
+                }
             } catch(e) {
                 console.error("Failed to load schema:", e);
             }
@@ -114,20 +125,23 @@ export default {
                 return;
             }
 
-            if (parsed) {
-                const validate = ajv.compile(schema);
-                const valid = validate(parsed);
-                if (!valid) {
-                    validate.errors.forEach(err => {
-                        markers.push({
-                            severity: monacoLib.MarkerSeverity.Error,
-                            startLineNumber: 1,
-                            startColumn: 1,
-                            endLineNumber: 1,
-                            endColumn: 100,
-                            message: `${err.instancePath} ${err.message}`
+            if (parsed && validateSchema) {
+                try {
+                    const valid = validateSchema(parsed);
+                    if (!valid) {
+                        validateSchema.errors.forEach(err => {
+                            markers.push({
+                                severity: monacoLib.MarkerSeverity.Warning,
+                                startLineNumber: 1,
+                                startColumn: 1,
+                                endLineNumber: 1,
+                                endColumn: 100,
+                                message: `${err.instancePath} ${err.message}`
+                            });
                         });
-                    });
+                    }
+                } catch(e) {
+                    console.warn("AJV evaluation error", e);
                 }
             }
 
