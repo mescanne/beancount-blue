@@ -13,8 +13,10 @@ export default {
         if (!root) return;
 
         const extBaseUrl = window.location.pathname.split("extension/")[0] + "extension/BankSync/";
-        const getConfigsUrl = extBaseUrl + "configs";
+        const dashboardUrl = extBaseUrl + "dashboard";
         const configUrl = extBaseUrl + "config";
+        const syncUrl = extBaseUrl + "sync";
+        const createUrl = extBaseUrl + "create";
         const schemaUrl = extBaseUrl + "schema";
 
         // Reset state for new DOM
@@ -35,7 +37,7 @@ export default {
         const ajv = new window.ajv7();
 
         // Load initial sidebar data immediately
-        loadConfigs();
+        loadDashboard();
 
         // Load Monaco
         if (!window.require) {
@@ -64,21 +66,11 @@ export default {
             // Handle changes for validation
             editor.onDidChangeModelContent(() => {
                 validateYaml();
-                document.getElementById('btn-save').disabled = false;
-            });
-
-            document.getElementById('current-file-name-input').addEventListener('input', () => {
-                document.getElementById('btn-save').disabled = false;
+                document.getElementById('btn-editor-save').disabled = false;
             });
 
             // Load schema for validation
             await fetchSchema();
-
-            // If a file was selected while Monaco was loading, show it now
-            if (currentFile && currentFile.contentLoaded) {
-                editor.setValue(currentFile.contentLoaded);
-                document.getElementById('btn-save').disabled = true;
-            }
         });
 
         function loadScript(src) {
@@ -127,8 +119,6 @@ export default {
                 const valid = validate(parsed);
                 if (!valid) {
                     validate.errors.forEach(err => {
-                        // Rough mapping of JSON path to line number would be complex,
-                        // just show at top for simplicity in CDN context
                         markers.push({
                             severity: monacoLib.MarkerSeverity.Error,
                             startLineNumber: 1,
@@ -144,143 +134,141 @@ export default {
             monacoLib.editor.setModelMarkers(editor.getModel(), 'yaml', markers);
         }
 
-        async function loadConfigs() {
+        async function loadDashboard() {
             try {
-                const res = await fetch(getConfigsUrl);
+                const res = await fetch(dashboardUrl);
                 const data = await res.json();
                 if (data.status === 'success') {
-                    renderSidebar(data.files);
+                    renderDashboard(data.items);
                 } else {
-                    console.error("Error loading configs:", data.message);
+                    console.error("Error loading dashboard:", data.message);
                 }
             } catch(e) {
                 console.error("Fetch error:", e);
             }
         }
 
-        function renderSidebar(files) {
-            const list = document.getElementById('api-file-list');
-            list.innerHTML = '';
+        function renderDashboard(items) {
+            const tbody = document.getElementById('api-table-body');
+            tbody.innerHTML = '';
 
-            files.forEach(f => {
-                const div = document.createElement('div');
-                div.className = 'api-file-item';
-                div.innerText = f.name;
-                div.onclick = () => selectFile(f);
-                if (currentFile && currentFile.name === f.name) {
-                    div.classList.add('active');
-                }
-                list.appendChild(div);
-            });
-
-            const btnNew = document.createElement('button');
-            btnNew.className = 'api-file-item';
-            btnNew.style.width = '100%';
-            btnNew.style.marginTop = '1rem';
-            btnNew.innerText = '+ New Config';
-            btnNew.onclick = createNewConfig;
-            list.appendChild(btnNew);
-        }
-
-        async function selectFile(file) {
-            currentFile = file;
-            document.querySelectorAll('.api-file-item').forEach(el => {
-                el.classList.toggle('active', el.innerText === file.name);
-            });
-
-            try {
-                const res = await fetch(`${configUrl}?name=${encodeURIComponent(file.name)}`);
-                const data = await res.json();
-                if (data.status === 'success') {
-                    currentFile.contentLoaded = data.content;
-                    if(editor) {
-                        editor.setValue(data.content);
-                        document.getElementById('btn-save').disabled = true;
-                    }
-                    document.getElementById('btn-import').disabled = false;
-                    document.getElementById('btn-delete').disabled = false;
-                    syncFilenameDisplay(file.name);
-                }
-            } catch(e) {
-                console.error("Failed to load file:", e);
-            }
-        }
-
-        function createNewConfig() {
-            let name = "api_new.yaml";
-            let counter = 1;
-            const existingNames = Array.from(document.querySelectorAll('.api-file-item')).map(el => el.innerText);
-            while (existingNames.includes(name)) {
-                name = `api_new_${counter}.yaml`;
-                counter++;
-            }
-
-            currentFile = { name: name, path: "" }; // Path populated on save
-            if(editor) {
-                const stub = `importer_name: monzo\nclient_id: ""\nclient_secret: ""\naccount_map:\n  "acc_123": "Assets:Bank"\n`;
-                editor.setValue(stub);
-                document.getElementById('btn-save').disabled = false;
-                document.getElementById('btn-import').disabled = true;
-                document.getElementById('btn-delete').disabled = true;
-
-                document.getElementById('current-file-name-display').style.display = 'none';
-                const nameInput = document.getElementById('current-file-name-input');
-                nameInput.style.display = 'inline-block';
-                nameInput.value = name;
-                nameInput.focus();
-                nameInput.select();
-            }
-            // Mock active in sidebar
-            document.querySelectorAll('.api-file-item').forEach(el => el.classList.remove('active'));
-        }
-
-        function syncFilenameDisplay(filename) {
-            document.getElementById('current-file-name-display').style.display = 'inline-block';
-            document.getElementById('current-file-name-display').innerText = filename;
-            document.getElementById('current-file-name-input').style.display = 'none';
-            document.getElementById('current-file-name-input').value = filename;
-        }
-
-        document.getElementById('btn-save').onclick = async () => {
-            if (!currentFile || !editor) return;
-            const content = editor.getValue();
-
-            const nameInput = document.getElementById('current-file-name-input');
-            const newName = nameInput.style.display !== 'none' ? nameInput.value.trim() : currentFile.name;
-
-            if (!newName.startsWith("api_") || !newName.endsWith(".yaml")) {
-                alert("Name must start with 'api_' and end with '.yaml'");
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No integrations configured.</td></tr>';
                 return;
             }
 
-            const oldName = currentFile.name;
-            currentFile.name = newName;
+            items.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+
+                let statusHtml = '';
+                if (item.status === 'ok') {
+                    statusHtml = `<div class="api-status-ok">OK</div>`;
+                } else {
+                    statusHtml = `<div class="api-status-error">Error</div>`;
+                    if (item.error_msg) {
+                        statusHtml += `<div class="api-error-msg">${item.error_msg}</div>`;
+                    }
+                }
+
+                let lastSyncStr = item.last_sync ? new Date(item.last_sync).toLocaleString() : 'Never';
+
+                tr.innerHTML = `
+                    <td><strong>${item.filename}</strong></td>
+                    <td>${item.importer_name}</td>
+                    <td><div class="api-balances">${item.balances || '-'}</div></td>
+                    <td>${lastSyncStr}</td>
+                    <td>${statusHtml}</td>
+                    <td class="api-actions">
+                        <button class="btn btn-sync" data-idx="${idx}">Sync</button>
+                        <button class="btn btn-primary btn-import" data-idx="${idx}">Import</button>
+                        <button class="btn btn-edit" data-idx="${idx}">Edit</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Attach event listeners
+                tr.querySelector('.btn-sync').onclick = async function() {
+                    const btn = this;
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner"></span> Syncing...';
+                    try {
+                        const res = await fetch(syncUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: item.filename })
+                        });
+                        const data = await res.json();
+                        if (data.status === 'success') {
+                            await loadDashboard();
+                        } else {
+                            alert("Sync failed: " + data.message);
+                        }
+                    } catch(e) {
+                        alert("Sync error: " + e.message);
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerText = 'Sync';
+                        await loadDashboard(); // refresh anyway to catch new mtimes
+                    }
+                };
+
+                tr.querySelector('.btn-import').onclick = () => {
+                    if (!item.path) return;
+                    window.location.hash = `extract?filename=${encodeURIComponent(item.path)}&importer=API+Importer`;
+                };
+
+                tr.querySelector('.btn-edit').onclick = () => openEditorModal(item);
+            });
+        }
+
+        // --- Modals Logic ---
+
+        async function openEditorModal(item) {
+            currentFile = item;
+            document.getElementById('editor-modal-title').innerText = `Edit ${item.filename}`;
+            document.getElementById('editor-modal').style.display = 'flex';
+
+            if (editor) {
+                editor.setValue("Loading...");
+                document.getElementById('btn-editor-save').disabled = true;
+
+                try {
+                    const res = await fetch(`${configUrl}?name=${encodeURIComponent(item.filename)}`);
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        editor.setValue(data.content);
+                        document.getElementById('btn-editor-save').disabled = true; // disabled until changed
+                    } else {
+                        editor.setValue(`Error: ${data.message}`);
+                    }
+                } catch(e) {
+                    editor.setValue(`Failed to load file: ${e.message}`);
+                }
+            }
+        }
+
+        function closeEditorModal() {
+            document.getElementById('editor-modal').style.display = 'none';
+            currentFile = null;
+        }
+
+        document.getElementById('btn-editor-close').onclick = closeEditorModal;
+        document.getElementById('btn-editor-cancel').onclick = closeEditorModal;
+
+        document.getElementById('btn-editor-save').onclick = async () => {
+            if (!currentFile || !editor) return;
+            const content = editor.getValue();
 
             try {
                 const res = await fetch(configUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: currentFile.name, content: content })
+                    body: JSON.stringify({ name: currentFile.filename, content: content })
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    currentFile.path = data.path;
-
-                    if (oldName !== newName && currentFile.path && oldName !== "api_new.yaml" && !oldName.startsWith("api_new_")) {
-                        // Optionally clean up the old file if it was renamed
-                        try {
-                            await fetch(`${configUrl}?name=${encodeURIComponent(oldName)}`, { method: 'DELETE' });
-                        } catch(e) {
-                            console.warn("Failed to delete old file during rename", e);
-                        }
-                    }
-
-                    document.getElementById('btn-save').disabled = true;
-                    document.getElementById('btn-import').disabled = false;
-                    document.getElementById('btn-delete').disabled = false;
-
-                    syncFilenameDisplay(currentFile.name);
-                    await loadConfigs(); // refresh list to ensure it's there
+                    closeEditorModal();
+                    await loadDashboard();
                 } else {
                     alert("Save failed: " + data.message);
                 }
@@ -289,23 +277,18 @@ export default {
             }
         };
 
-        document.getElementById('btn-delete').onclick = async () => {
+        document.getElementById('btn-editor-delete').onclick = async () => {
             if (!currentFile) return;
-            if (!confirm(`Delete ${currentFile.name}?`)) return;
+            if (!confirm(`Delete ${currentFile.filename}?`)) return;
 
             try {
-                const res = await fetch(`${configUrl}?name=${encodeURIComponent(currentFile.name)}`, {
+                const res = await fetch(`${configUrl}?name=${encodeURIComponent(currentFile.filename)}`, {
                     method: 'DELETE'
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    currentFile = null;
-                    if(editor) editor.setValue('');
-                    document.getElementById('btn-save').disabled = true;
-                    document.getElementById('btn-import').disabled = true;
-                    document.getElementById('btn-delete').disabled = true;
-                    syncFilenameDisplay('Select a file');
-                    await loadConfigs();
+                    closeEditorModal();
+                    await loadDashboard();
                 } else {
                     alert("Delete failed: " + data.message);
                 }
@@ -314,11 +297,46 @@ export default {
             }
         };
 
-        document.getElementById('btn-import').onclick = () => {
-            if (!currentFile || !currentFile.path) return;
-            // Native Fava delegation: Use the new globally hoisted GlobalExtract modal overlay
-            // This prevents navigating away from the extension dashboard context.
-            window.location.hash = `extract?filename=${encodeURIComponent(currentFile.path)}&importer=API+Importer`;
+        // --- New Integration Modal ---
+
+        document.getElementById('btn-add-new').onclick = () => {
+            document.getElementById('new-integration-modal').style.display = 'flex';
+        };
+
+        function closeNewModal() {
+            document.getElementById('new-integration-modal').style.display = 'none';
+        }
+
+        document.getElementById('btn-new-close').onclick = closeNewModal;
+        document.getElementById('btn-new-cancel').onclick = closeNewModal;
+
+        document.getElementById('btn-new-create').onclick = async () => {
+            const name = document.getElementById('new-name').value.trim();
+            const type = document.getElementById('new-importer-type').value;
+
+            if (!name.startsWith("api_") || !name.endswith(".yaml")) {
+                alert("Name must start with 'api_' and end with '.yaml'");
+                return;
+            }
+
+            try {
+                const res = await fetch(createUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, importer_type: type })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    closeNewModal();
+                    await loadDashboard();
+                    // automatically open editor
+                    openEditorModal({ filename: name });
+                } else {
+                    alert("Create failed: " + data.message);
+                }
+            } catch(e) {
+                alert("Create error: " + e.message);
+            }
         };
     }
 };

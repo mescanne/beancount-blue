@@ -1,95 +1,195 @@
 <style>
-/* API Config Manager Styles */
-.api-config {
-    display: flex;
-    height: calc(100vh - 60px);
-    margin: -1rem;
-    font-family: var(--font-family, sans-serif);
-}
-.api-sidebar {
-    width: 250px;
-    border-right: 1px solid var(--color-sidebar-border, #ddd);
-    background: var(--color-sidebar-background, #fafafa);
+/* API Importer Dashboard Styles */
+.api-dashboard {
     padding: 1rem;
-    overflow-y: auto;
 }
-.api-sidebar h3 {
+.api-dashboard h2 {
     margin-top: 0;
-    font-size: 1.1em;
-    border-bottom: 1px solid var(--color-sidebar-border, #ddd);
-    padding-bottom: 8px;
+    margin-bottom: 1rem;
 }
-.api-main {
-    flex: 1;
+.api-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+.api-table th, .api-table td {
+    padding: 10px;
+    border-bottom: 1px solid var(--color-sidebar-border, #eee);
+    text-align: left;
+}
+.api-table th {
+    background: var(--color-sidebar-background, #fafafa);
+    font-weight: bold;
+}
+.api-status-ok {
+    color: var(--color-background-positive, #2ecc71);
+    font-weight: bold;
+}
+.api-status-error {
+    color: var(--color-background-negative, #e74c3c);
+    font-weight: bold;
+}
+.api-error-msg {
+    color: var(--color-background-negative, #e74c3c);
+    font-size: 0.85em;
+    margin-top: 4px;
+}
+.api-balances {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+.api-actions button {
+    margin-right: 5px;
+}
+.spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: currentColor;
+    animation: spin 1s ease-in-out infinite;
+    vertical-align: text-bottom;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Modal Overlay Styles */
+.api-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.api-modal {
+    background: var(--color-background, #fff);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     display: flex;
     flex-direction: column;
-    background: var(--color-background, #fff);
 }
-.api-header {
+.api-modal-header {
     padding: 1rem;
     border-bottom: 1px solid var(--color-sidebar-border, #ddd);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.api-header h2 {
+.api-modal-header h3 {
     margin: 0;
-    font-size: 1.2em;
 }
-.api-editor-container {
+.api-modal-body {
+    padding: 1rem;
     flex: 1;
     position: relative;
 }
-#editor-container {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-}
-.api-actions {
+.api-modal-footer {
     padding: 1rem;
     border-top: 1px solid var(--color-sidebar-border, #ddd);
     display: flex;
-    gap: 1rem;
     justify-content: flex-end;
-    background: var(--color-sidebar-background, #fafafa);
+    gap: 10px;
 }
-.api-file-item {
-    padding: 8px 12px;
-    cursor: pointer;
+#editor-modal .api-modal {
+    width: 80%;
+    height: 80vh;
+}
+#editor-container {
+    position: absolute;
+    top: 1rem; left: 1rem; right: 1rem; bottom: 1rem;
+    border: 1px solid var(--color-sidebar-border, #ddd);
+}
+#new-integration-modal .api-modal {
+    width: 400px;
+}
+.form-group {
+    margin-bottom: 1rem;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--color-sidebar-border, #ccc);
     border-radius: 4px;
-    margin-bottom: 4px;
-    border: 1px solid transparent;
-    transition: all 0.2s;
     background: var(--color-background, #fff);
-}
-.api-file-item:hover {
-    border-color: var(--color-sidebar-border, #ccc);
-}
-.api-file-item.active {
-    background: var(--color-button-bg, #007bff);
-    color: var(--color-button-text, #fff);
-    border-color: transparent;
+    color: var(--color-text, #333);
 }
 </style>
 
-<div class="api-config" id="api-config-root">
-    <div class="api-sidebar">
-        <h3>Configuration Files</h3>
-        <div id="api-file-list"></div>
+<div class="api-dashboard" id="api-config-root">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>API Integrations</h2>
+        <button id="btn-add-new" class="btn btn-primary">+ Add API</button>
     </div>
-    <div class="api-main">
-        <div class="api-header">
-            <div>
-                <h2 id="current-file-name-display">Select a file</h2>
-                <input type="text" id="current-file-name-input" style="display: none; font-size: 1.2em; font-weight: bold; border: 1px solid var(--color-sidebar-border); background: var(--color-background); color: var(--color-text); padding: 4px; border-radius: 4px; width: 300px;" />
-            </div>
-            <button id="btn-delete" class="btn" style="color: var(--color-background-negative); border: none; background: transparent; cursor: pointer;" disabled>Delete</button>
+
+    <table class="api-table">
+        <thead>
+            <tr>
+                <th>Integration</th>
+                <th>Importer</th>
+                <th>Balances</th>
+                <th>Last Sync</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="api-table-body">
+            <tr><td colspan="6" style="text-align: center;">Loading integrations...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Editor Modal -->
+<div id="editor-modal" class="api-modal-overlay">
+    <div class="api-modal">
+        <div class="api-modal-header">
+            <h3 id="editor-modal-title">Edit Configuration</h3>
+            <button id="btn-editor-close" class="btn" style="background:transparent; border:none; font-size:1.5em; cursor:pointer;">&times;</button>
         </div>
-        <div class="api-editor-container">
+        <div class="api-modal-body">
             <div id="editor-container"></div>
         </div>
-        <div class="api-actions">
-            <button id="btn-save" class="btn" disabled>Save</button>
-            <button id="btn-import" class="btn btn-primary" disabled>Import Data</button>
+        <div class="api-modal-footer">
+            <button id="btn-editor-delete" class="btn" style="color: var(--color-background-negative, red); margin-right: auto;">Delete</button>
+            <button id="btn-editor-cancel" class="btn">Cancel</button>
+            <button id="btn-editor-save" class="btn btn-primary">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Integration Modal -->
+<div id="new-integration-modal" class="api-modal-overlay">
+    <div class="api-modal">
+        <div class="api-modal-header">
+            <h3>New Integration</h3>
+            <button id="btn-new-close" class="btn" style="background:transparent; border:none; font-size:1.5em; cursor:pointer;">&times;</button>
+        </div>
+        <div class="api-modal-body">
+            <div class="form-group">
+                <label>Name (e.g., api_monzo_joint.yaml)</label>
+                <input type="text" id="new-name" placeholder="api_mybank.yaml" value="api_new.yaml" />
+            </div>
+            <div class="form-group">
+                <label>Importer Type</label>
+                <select id="new-importer-type">
+                    <option value="monzo">Monzo</option>
+                    <option value="starling">Starling</option>
+                    <option value="truelayer">TrueLayer</option>
+                </select>
+            </div>
+        </div>
+        <div class="api-modal-footer">
+            <button id="btn-new-cancel" class="btn">Cancel</button>
+            <button id="btn-new-create" class="btn btn-primary">Create</button>
         </div>
     </div>
 </div>

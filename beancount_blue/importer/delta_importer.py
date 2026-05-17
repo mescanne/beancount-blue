@@ -1,15 +1,15 @@
 import logging
 import os
 from abc import ABCMeta, abstractmethod
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import get_original_bases
-from typing import TypeVar, final, override
+from typing import Any, TypeVar, final, override
 
 from beancount.core.data import Account, Balance, Directive, Entries, Transaction
 from beangulp.importer import Importer  # pyright: ignore[reportMissingTypeStubs]
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings
 
 from .importer import ImportedTransaction, imported_to_beancount
@@ -21,6 +21,28 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 T = TypeVar("T", bound=BaseModel)
+
+
+class ImporterState[T: BaseModel](BaseModel):
+    last_sync_time: datetime | None = None
+    last_sync_error: str | None = None
+    latest_transaction_date: date | None = None
+    data: T
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_data(cls, values: Any) -> Any:
+        """
+        Migrates legacy raw API caches into the new ImporterState envelope.
+        If the raw JSON dictionary lacks a 'data' key, we assume it's the old
+        raw model (e.g., MonzoData) and wrap it automatically.
+        """
+        from typing import cast
+
+        if isinstance(values, dict) and "data" not in values:
+            log.info("Legacy cache payload detected. Migrating to ImporterState envelope in-memory.")
+            return cast(Any, {"data": values})
+        return cast(Any, values)
 
 
 class AccountConfig(BaseModel):
@@ -153,40 +175,73 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         m = {k: (v.name if isinstance(v, AccountConfig) else v) for k, v in (self.account_map or {}).items()}
         sorted_keys = sorted(m.keys(), key=len, reverse=True)
 
+        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Savings
+        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Silas
+        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Main
+        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Emma
+        # Checking account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with Assets:Current:Joint:Starling:Main for notification
+
         for raw_id, (amount, currency) in raw_balances.items():
             account_name = raw_id
             for k in sorted_keys:
+                print(f"Evaluating account {account_name} with {k}")
                 if account_name == k or account_name.startswith(k + ":"):
                     account_name = account_name.replace(k, m[k], 1)
+                    print(f"New account name {account_name} with {k}")
                     break
 
             if acct:
+                print(f"Checking account {account_name} with {acct} for notification")
                 if account_name != acct:
                     continue
 
                 return f"{amount:,.2f} {currency}"
 
-            lines.append(f"{account_name}: {amount:,.2f} {currency} (Available)")
+            lines.append(f"{account_name}: {amount:,.2f} {currency}")
 
         if not lines:
             return None
 
         return "\n".join(sorted(lines))
 
-    def load_data(self) -> APIData:
-        api_data = self.get_types()
+    def load_data(self) -> ImporterState[APIData]:
+        api_data_type = self.get_types()
+        state_type = ImporterState[api_data_type]
+
         if self.cache_data:
-            with load(self.cache_data, api_data, skip_save=self.cache_only) as data:
+            with load(self.cache_data, state_type, skip_save=self.cache_only) as state:
                 if not self.cache_only:
                     log.info("Refreshing data from API, Cache only is %s", self.cache_only)
-                    self.refresh(data)
-                return data
+                    try:
+                        self.refresh(state.data)
+                        state.last_sync_error = None
+                    except Exception as e:
+                        log.exception("Error during API refresh")
+                        state.last_sync_error = str(e)
+                    finally:
+                        state.last_sync_time = datetime.now()
+                        try:
+                            entries = self.extract(state.data)
+                            if entries:
+                                dates = [e.date for e in entries if getattr(e, "date", None)]
+                                if dates:
+                                    state.latest_transaction_date = max(dates)
+                        except Exception as e:
+                            log.debug(f"Could not extract dates for dashboard metadata: {e}")
+                return state
         else:
             if self.cache_only:
                 log.warning("No cache data path provided, but cache_only is set to True. Ignoring cache_only.")
-            data = api_data()
-            self.refresh(data)
-            return data
+            state = state_type(data=api_data_type())
+            try:
+                self.refresh(state.data)
+                state.last_sync_error = None
+            except Exception as e:
+                log.exception("Error during API refresh")
+                state.last_sync_error = str(e)
+            finally:
+                state.last_sync_time = datetime.now()
+            return state
 
     def filter(self, data: list[ImportedTransaction]) -> list[ImportedTransaction]:
         """Filter imported transactions based on config.
@@ -213,8 +268,8 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
 
     @final
     def beancount_load(self, existing: Entries | None = None) -> Entries:
-        data = self.load_data()
-        imported_entries = self.extract(data)
+        state = self.load_data()
+        imported_entries = self.extract(state.data)
         imported_entries = self.filter(imported_entries)
 
         # ML Prediction logic

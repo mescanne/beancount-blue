@@ -1,55 +1,65 @@
-# Incubation Framework: API Importer Fava Extension
+# Incubation Framework: API Importer Dashboard
 
 ## 1. Strategic Direction
-The `BankSync` extension is pivoting from a custom "Clearing House" UI that replicates transaction ingestion, to a lightweight **Configuration Manager** that delegates the heavy lifting to Fava's native import pipeline.
+The extension will transition from a full-screen YAML editor into a **Fava-native Tabular Dashboard**. The primary user experience will be "at-a-glance" observability of all configured API integrations, their balances, and their sync health. Configuration editing and new integration creation will be deferred to overlay Modals.
 
 **Core Principles:**
-- **Zero Ingestion Logic in the UI:** The extension will no longer fetch, parse, or present transactions.
-- **Native Platform Delegation:** We lean entirely on Fava's `/import?auto_extract=<file>&importer=<importer>` mechanism to drive the import UI, loading states, and error handling.
-- **External Dependencies for Heavy Lifting:** The browser-based editor will use Monaco Editor, loaded via CDN, to provide a rich YAML editing experience backed by our Python-generated JSON Schema without bloating the extension's bundle size.
-- **Future-Proofing for Phase 2 ("Sync"):** While this phase strictly redirects to Fava for extraction, the architecture remains modular enough that a background `/sync` worker could be re-introduced later without disrupting the UI topology.
+- **Observability First:** The main view is a table listing integrations, their status, last sync time, and available balances.
+- **Resilient Identity:** An integration's identity is tied to its physical `api_*.yaml` file. Malformed YAML results in a dashboard "Error" state, not a disappeared integration.
+- **Graceful Migration:** Adding sync metadata requires wrapping existing API cache payloads without breaking backward compatibility.
 
-## 2. Core Architecture
+## 2. Data Models & State Management
 
-### 2.1 Storage Boundary
-- The current implementation passes configuration via the Beancount file (`fava-extension "beancount_blue.importer.fava.bank_sync"` string).
-- **Change:** The extension will now manage distinct `api_*.yaml` files stored in a dedicated, well-known directory (e.g., `api_configs/` relative to the Beancount ledger path).
-- Fava does not require these files to be in `import-dirs` when deep-linking. We will generate absolute paths from this known directory and pass them directly to Fava's deep link.
+### 2.1 The Sync Metadata Wrapper (`delta_importer.py`)
+We will introduce a generic `ImporterState[T]` model to wrap the raw API data (`MonzoData`, `StarlingData`).
+```python
+class ImporterState[T: BaseModel](BaseModel):
+    last_sync_time: datetime | None = None
+    last_sync_error: str | None = None
+    latest_transaction_date: date | None = None
+    data: T
+```
+**Migration Boundary:** `utils.load` or `APIImporter.load_data` will be updated to handle legacy `.tar.gz` files. If it fails to parse into `ImporterState`, it will parse as the raw `APIData` and seamlessly wrap it in a new `ImporterState` envelope for future saves.
 
-### 2.2 Extension Backend (Python)
-The `BankSync` (to be renamed or refactored as `APIConfigManager` or similar) class in `beancount_blue/importer/fava/bank_sync.py` will be stripped of its transaction endpoints (`get_transactions`, `commit_transactions`, `sync`, `generate`).
+### 2.2 Backend In-Memory Dashboard Cache (`bank_sync.py`)
+To prevent severe disk I/O and gzip decompression on every dashboard load, the Fava extension will maintain an instance-level cache:
+`self._dashboard_cache: dict[str, dict]` (mapping `yaml_filename` to a parsed state dict).
+- On the `/dashboard` API request, the backend stats the `mtime` of the `.yaml` and the associated `.tar.gz` file.
+- It only triggers a re-parse or decompression if the `mtime` has changed since the last cache hit.
 
-**New API Surface:**
-1.  **`@extension_endpoint("configs", methods=["GET"])`**:
-    - Scans the dedicated configuration directory.
-    - Returns a list of available `api_*.yaml` files and their paths.
-2.  **`@extension_endpoint("config", methods=["GET", "POST", "DELETE"])`**:
-    - Loads, saves, or deletes the raw YAML content for a specific file.
-3.  **`@extension_endpoint("schema", methods=["GET"])`** (Keep existing):
-    - Continues to serve `TypeAdapter(Importer).json_schema()` to validate the YAML via Monaco.
+## 3. Extension API Boundaries
 
-### 2.3 Frontend UI (Javascript + HTML)
-The heavy `BankSync.js` will be gutted and replaced.
+The python backend will expose the following distinct endpoints:
 
-**UI Components:**
-1.  **Sidebar/List View:** Displays the list of configured `api_*.yaml` files fetched from the backend.
-2.  **Editor Pane:** A Monaco Editor instance (loaded via unpkg/CDN) configured for YAML.
-    - Mapped to the JSON schema from the backend to provide real-time validation and autocomplete.
-3.  **Action Bar:**
-    - `Save`: Writes the YAML back to the backend endpoint.
-    - `Import`: Constructs the redirect URL `window.location.href = "/import?auto_extract=" + encodeURIComponent(absolute_path) + "&importer=API+Importer"` and triggers the navigation.
+1. **`GET /dashboard`**: Returns the aggregated, cached list of integrations for the table.
+   - *Payload:* `[{ "filename": "api_monzo.yaml", "importer_name": "Monzo", "status": "ok|error", "last_sync": "...", "balances": "...", "error_msg": "..." }]`
+2. **`POST /sync`**: Accepts a `filename`.
+   - Triggers `importer.load_data(cache_only=False)` (which runs `refresh()`).
+   - Catches any exceptions, writes them to `last_sync_error` in the `ImporterState`, updates `last_sync_time`, and saves the `.tar.gz`.
+3. **`GET /config` & `POST /config`**: (Existing) Reads and writes raw YAML for the Monaco editor.
+4. **`POST /create`**: Accepts `importer_type` and `name`. Generates a boilerplate `api_{name}.yaml` (injecting a standardized `cache_data` path) and saves it to disk.
 
-## 3. Data Flow & Handoff
+## 4. Frontend Architecture (Javascript + HTML)
 
-1.  User opens the extension in Fava.
-2.  UI fetches the schema and the list of `api_*.yaml` files.
-3.  User selects a file. UI loads the YAML content into Monaco Editor.
-4.  User edits configuration. Monaco validates against the Pydantic-generated JSON schema.
-5.  User clicks Save. YAML is pushed to the extension backend and written to disk.
-6.  User clicks Import. The UI completely abandons its state and redirects the browser to Fava's native `/import` route, appending the absolute path of the YAML file.
-7.  Fava's native `623c5fdb` commit takes over, triggering `BeancountAPIImporterV2` to extract entries dynamically using the saved configuration file.
+### 4.1 Main View: The Dashboard Table
+- A standard Fava data table.
+- Columns: Integration (Name/File), Importer, Balances, Last Sync, Status, Actions.
+- Actions:
+  - `Sync` (Triggers `/sync` endpoint, shows a loading spinner on the row).
+  - `Import` (Deep-links to Fava's `GlobalExtract` modal using `window.location.hash`).
+  - `Edit` (Opens the Monaco Editor modal).
 
-## 4. Execution Guardrails
-- **State Management:** Do not attempt to preserve state during the redirect to Fava. The Fava deep-link cleanly replaces the history state to prevent loop refresh issues.
-- **Monaco Setup:** Use the standard `monaco-editor` CDN and wire up the `monaco-yaml` wrapper to natively bind our JSON schema. Do not attempt to run a Node build pipeline inside the Fava extension.
-- **Validation:** Trust the Pydantic JSON schema. Do not duplicate validation logic in Javascript. If the YAML fails the schema check in Monaco, prevent saving.
+### 4.2 Modal: YAML Editor
+- Triggered by the `Edit` action.
+- Uses Fava's native CSS overlay conventions.
+- Houses the Monaco Editor configured exactly as it is now.
+- `Save` validates the YAML, pushes to backend, and refreshes the dashboard table.
+
+### 4.3 Modal: New Integration
+- Triggered by an "Add API" button on the dashboard.
+- A simple HTML form: `<select>` for Importer Type (dynamically populated from Python schema), and a `<input>` for the recognizable Name.
+- Submitting the form calls `/create`, then automatically opens the YAML Editor Modal for the user to paste their API keys.
+
+## 5. Execution Guardrails
+- **File Parsing Safety:** Ensure the Python loop generating the dashboard payload wraps YAML parsing in a `try/except` block. A user typing invalid YAML should never cause the entire `/dashboard` endpoint to 500.
+- **Cache Invalidations:** Fava's `background_sync` or CLI triggers might update the `.tar.gz` file outside of the web UI. Relying on `os.stat().st_mtime` ensures the dashboard always picks up these out-of-band updates.
