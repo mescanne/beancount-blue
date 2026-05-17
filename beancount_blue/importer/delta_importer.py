@@ -164,34 +164,28 @@ class APIImporter[APIData: BaseModel](BaseSettings, metaclass=ABCMeta):
         not the cleared ledger balance.
         """
 
-    def format_available_balances(self, state: APIData, acct: str | None = None) -> str | None:
+    def format_available_balances(self, state: APIData | ImporterState[APIData], acct: str | None = None) -> str | None:
         """Translates raw available balances into a human-readable string using account_map."""
-        raw_balances = self.extract_available_balances(state)
+        if isinstance(state, ImporterState):
+            from typing import cast
+
+            raw_balances = self.extract_available_balances(cast(APIData, state.data))
+        else:
+            raw_balances = self.extract_available_balances(state)
         if not raw_balances:
             return None
 
         lines: list[str] = []
-        # Translate keys using account_map
         m = {k: (v.name if isinstance(v, AccountConfig) else v) for k, v in (self.account_map or {}).items()}
         sorted_keys = sorted(m.keys(), key=len, reverse=True)
-
-        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Savings
-        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Silas
-        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Main
-        # Evaluating account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with 25789c3f-778f-4e35-becf-eb4ab0718cf6:Emma
-        # Checking account 25789c3f-778f-4e35-becf-eb4ab0718cf6 with Assets:Current:Joint:Starling:Main for notification
-
         for raw_id, (amount, currency) in raw_balances.items():
             account_name = raw_id
             for k in sorted_keys:
-                print(f"Evaluating account {account_name} with {k}")
                 if account_name == k or account_name.startswith(k + ":"):
                     account_name = account_name.replace(k, m[k], 1)
-                    print(f"New account name {account_name} with {k}")
                     break
 
             if acct:
-                print(f"Checking account {account_name} with {acct} for notification")
                 if account_name != acct:
                     continue
 

@@ -213,9 +213,10 @@ class BankSync(FavaExtensionBase):  # type: ignore
                                         state.last_sync_time.isoformat() if state.last_sync_time else None
                                     )
                                     new_entry["error_msg"] = state.last_sync_error
-                                    new_entry["balances"] = api_importer.format_available_balances(state.data)
+                                    new_entry["balances"] = api_importer.format_available_balances(state)
                                     new_entry["status"] = "ok" if not state.last_sync_error else "error"
                                 except Exception as e:
+                                    log.error(e, exc_info=True)
                                     new_entry["status"] = "error"
                                     new_entry["error_msg"] = f"Failed to load cache: {str(e)}"
                             else:
