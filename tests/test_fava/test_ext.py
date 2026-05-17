@@ -4,37 +4,40 @@ from fava.application import create_app
 
 
 def test_fava_extension():
-    abs_path = os.path.abspath("test_fava/test_ledger.beancount")
+    abs_path = os.path.abspath("tests/test_fava/test_ledger.beancount")
     app = create_app([abs_path])
     app.config["TESTING"] = True
 
     ledgers_by_slug = app.config["LEDGERS"].ledgers_by_slug
     slug = list(ledgers_by_slug.keys())[0]
-    ledger = ledgers_by_slug[slug]
-
-    print(f"Loaded extensions in Fava: {ledger.extensions._loaded_extensions}")
 
     with app.test_client() as client:
-        # Instead of going to the HTML page right away, which uses url_for and fails, let's call the endpoints
+        # Test Get Configs
+        res = client.get(f"/{slug}/extension/BankSync/configs")
+        assert res.status_code == 200
+        assert res.json["status"] == "success"
 
-        # Test Save Config Endpoint
+        # Test Save Config
         res = client.post(
-            f"/{slug}/extension/BankSync/save_config", json={"content": "global:\n  import_dir: test_dir"}
+            f"/{slug}/extension/BankSync/config",
+            json={"name": "api_test.yaml", "content": "importer_name: monzo\nclient_id: 'test'"},
         )
-        print("Extension Save Config Status:", res.status_code)
-        if res.status_code == 200:
-            print("-> SUCCESS: Save Config:", res.json)
-        else:
-            print(res.data)
+        assert res.status_code == 200
+        assert res.json["status"] == "success"
 
-        # Test the HTML report after checking the extension loaded
-        try:
-            res = client.get(f"/{slug}/extension/BankSync/")
-            print("Extension HTML Status:", res.status_code)
-            if res.status_code == 200:
-                print("HTML template rendering works.")
-        except Exception as e:
-            print(f"Template render error: {e}")
+        # Test Get Config
+        res = client.get(f"/{slug}/extension/BankSync/config?name=api_test.yaml")
+        assert res.status_code == 200
+        assert res.json["content"] == "importer_name: monzo\nclient_id: 'test'"
+
+        # Test Delete Config
+        res = client.delete(f"/{slug}/extension/BankSync/config?name=api_test.yaml")
+        assert res.status_code == 200
+        assert res.json["status"] == "success"
+
+        # Test the HTML report
+        res = client.get(f"/{slug}/extension/BankSync/")
+        assert res.status_code == 200
 
 
 if __name__ == "__main__":

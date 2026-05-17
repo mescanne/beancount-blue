@@ -1,114 +1,92 @@
 <style>
-/* Fava-native Clearing House Styles */
-.clearing-house {
+/* API Config Manager Styles */
+.api-config {
     display: flex;
-    /* Adjust height to fit within Fava's main content area */
     height: calc(100vh - 60px);
     margin: -1rem;
+    font-family: var(--font-family, sans-serif);
 }
-.ch-sidebar {
-    width: 280px;
+.api-sidebar {
+    width: 250px;
     border-right: 1px solid var(--color-sidebar-border, #ddd);
     background: var(--color-sidebar-background, #fafafa);
     padding: 1rem;
     overflow-y: auto;
 }
-.ch-sidebar h3 {
+.api-sidebar h3 {
     margin-top: 0;
     font-size: 1.1em;
     border-bottom: 1px solid var(--color-sidebar-border, #ddd);
     padding-bottom: 8px;
 }
-.ch-account-item {
-    padding: 12px 10px;
-    margin-bottom: 8px;
+.api-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-background, #fff);
+}
+.api-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-sidebar-border, #ddd);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.api-header h2 {
+    margin: 0;
+    font-size: 1.2em;
+}
+.api-editor-container {
+    flex: 1;
+    position: relative;
+}
+#editor-container {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+}
+.api-actions {
+    padding: 1rem;
+    border-top: 1px solid var(--color-sidebar-border, #ddd);
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    background: var(--color-sidebar-background, #fafafa);
+}
+.api-file-item {
+    padding: 8px 12px;
     cursor: pointer;
     border-radius: 4px;
+    margin-bottom: 4px;
     border: 1px solid transparent;
     transition: all 0.2s;
     background: var(--color-background, #fff);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
-.ch-account-item:hover {
+.api-file-item:hover {
     border-color: var(--color-sidebar-border, #ccc);
 }
-.ch-account-item.active {
+.api-file-item.active {
     background: var(--color-button-bg, #007bff);
     color: var(--color-button-text, #fff);
     border-color: transparent;
 }
-.ch-account-item.active small {
-    color: rgba(255,255,255,0.8);
-}
-.ch-main {
-    flex: 1;
-    padding: 1.5rem;
-    overflow-y: auto;
-    background: var(--color-background, #fff);
-}
-table.ch-grid {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95em;
-}
-table.ch-grid th {
-    background: var(--color-sidebar-background, #fafafa);
-    position: sticky;
-    top: -1.5rem;
-    padding: 10px;
-    border-bottom: 2px solid var(--color-sidebar-border, #ddd);
-    text-align: left;
-    z-index: 10;
-}
-table.ch-grid td {
-    padding: 10px;
-    border-bottom: 1px solid var(--color-sidebar-border, #eee);
-    vertical-align: middle;
-}
-.confidence-high { border-left: 4px solid var(--color-background-positive, #2ecc71) !important; }
-.confidence-low { border-left: 4px solid var(--color-background-warning, #f1c40f) !important; }
-
-.detail-row {
-    display: none;
-    background: var(--color-sidebar-background, #fafafa);
-}
-.detail-row.open {
-    display: table-row;
-}
-.detail-content {
-    padding: 1rem;
-    font-family: monospace;
-    white-space: pre-wrap;
-    border-radius: 4px;
-    border: 1px solid var(--color-sidebar-border, #ddd);
-    background: var(--color-background, #fff);
-    margin: 5px 0;
-}
-.ch-btn-expander {
-    background: none;
-    border: none;
-    color: var(--color-text, #333);
-    cursor: pointer;
-    font-size: 0.8em;
-    padding: 5px;
-    transition: transform 0.2s;
-}
-.ch-btn-expander.open {
-    transform: rotate(90deg);
-}
 </style>
 
-<div class="clearing-house" id="clearing-house-root">
-    <div class="ch-sidebar" id="ch-sidebar">
-        <h3>Import Queues</h3>
-        <div id="ch-queues">
-            <p style="color: var(--color-text-lighter);">Loading queues...</p>
-        </div>
+<div class="api-config" id="api-config-root">
+    <div class="api-sidebar">
+        <h3>Configuration Files</h3>
+        <div id="api-file-list"></div>
     </div>
-    <div class="ch-main" id="ch-main">
-        <div style="text-align: center; margin-top: 20%; color: var(--color-text-lighter);">
-            <h2>Clearing House</h2>
-            <p>Select an account queue from the sidebar to begin reconciliation.</p>
+    <div class="api-main">
+        <div class="api-header">
+            <h2 id="current-file-name">Select a file</h2>
+            <button id="btn-delete" class="btn" style="color: var(--color-background-negative); border: none; background: transparent; cursor: pointer;" disabled>Delete</button>
+        </div>
+        <div class="api-editor-container">
+            <div id="editor-container"></div>
+        </div>
+        <div class="api-actions">
+            <button id="btn-save" class="btn" disabled>Save</button>
+            <button id="btn-import" class="btn btn-primary" disabled>Import Data</button>
         </div>
     </div>
 </div>

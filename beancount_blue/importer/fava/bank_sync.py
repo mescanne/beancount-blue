@@ -1,11 +1,8 @@
 # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType, reportUnknownArgumentType]
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
-import yaml
-from beancount.parser import printer
 from fava.ext import FavaExtensionBase, extension_endpoint
 from flask import jsonify, request
 from pydantic import TypeAdapter
@@ -24,84 +21,118 @@ log = logging.getLogger(__name__)
 
 
 class BankSync(FavaExtensionBase):  # type: ignore
-    report_title = "Bank Sync"
+    report_title = "API Importers"
     has_js_module = True
 
     def __init__(self, ledger: Any, config: Any = None) -> None:
         super().__init__(ledger, config)
-        log.info(f"BankSync extension initialized. Config: {self.config}")
+        log.info(f"API Config Manager initialized. Config: {self.config}")
 
-    def parse_config(self) -> dict[str, Any]:
+    @property
+    def config_dir(self) -> Path:
         """
-        Parses the Fava extension config.
-        The config should be provided directly in the Beancount file as a dictionary string.
-        Returns a grouped dictionary: {"monzo": [config_dict, ...], "starling": [...]}
+        Determines the directory for API configuration files.
+        If not specified in extension config, defaults to 'api_configs' relative to ledger.
         """
-        if not self.config:
-            return {}
-
-        data: dict[str, Any] = {}
-        if isinstance(self.config, str):  # pyright: ignore
+        user_dir: str | None = None
+        if isinstance(self.config, dict):
+            val = self.config.get("config_dir")  # pyright: ignore
+            if isinstance(val, str):
+                user_dir = val
+        elif isinstance(self.config, str) and self.config:
             try:
                 import ast
 
-                data = ast.literal_eval(self.config)  # pyright: ignore
-            except Exception:
-                try:
-                    data = yaml.safe_load(self.config)
-                except Exception as e:
-                    log.error(f"Failed to parse config string: {e}")
-                    return {}
-        elif isinstance(self.config, dict):
-            data = self.config  # pyright: ignore
+                c = ast.literal_eval(self.config)
+                if isinstance(c, dict):
+                    val = c.get("config_dir")  # pyright: ignore
+                    if isinstance(val, str):
+                        user_dir = val
+            except Exception as e:
+                log.debug(f"Failed to parse config as literal eval: {e}")
+
+        if user_dir:
+            path = Path(user_dir)
+            if not path.is_absolute():
+                path = Path(self.ledger.options["filename"]).parent / path
         else:
-            log.error(f"Unsupported config type: {type(self.config)}")
-            return {}
+            path = Path(self.ledger.options["filename"]).parent / "api_configs"
 
-        return data  # type: ignore
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
-    def get_docs(self) -> list[str]:
-        import inspect
+    @extension_endpoint("configs", methods=["GET"])
+    def get_configs(self) -> Any:
+        try:
+            files: list[dict[str, str]] = []
+            for p in self.config_dir.glob("api_*.yaml"):
+                if p.is_file():
+                    files.append({"name": p.name, "path": str(p.absolute())})
+            # Sort for deterministic order
+            files.sort(key=lambda x: x["name"])
+            return jsonify({"status": "success", "files": files})
+        except Exception as e:
+            log.exception("Failed to get configs")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
-        import markdown2
+    @extension_endpoint("config", methods=["GET"])
+    def get_config(self) -> Any:
+        try:
+            name = request.args.get("name")
+            if not name or not name.startswith("api_") or not name.endswith(".yaml"):
+                return jsonify({"status": "error", "message": "Invalid config name"}), 400
 
-        from beancount_blue.importer.monzo import MonzoImporter
-        from beancount_blue.importer.starling import StarlingImporter
-        from beancount_blue.importer.truelayer import TrueLayerImporter
+            p = self.config_dir / name
+            if not p.exists():
+                return jsonify({"status": "error", "message": "File not found"}), 404
 
-        docs: list[str] = []
-        for cls in [MonzoImporter, StarlingImporter, TrueLayerImporter]:
-            if cls.__doc__:
-                # Dedent the docstring so markdown renders correctly
-                clean_doc = inspect.cleandoc(cls.__doc__)
-                # Render markdown with common extras
-                html = markdown2.markdown(clean_doc, extras=["fenced-code-blocks", "tables", "break-on-newline"])
-                docs.append(str(html))  # type: ignore
-        return docs
+            content = p.read_text(encoding="utf-8")
+            return jsonify({"status": "success", "content": content})
+        except Exception as e:
+            log.exception("Failed to get config")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
-    def get_banks_status(self) -> list[dict[str, Any]]:
-        config = self.parse_config()
-        status: list[dict[str, Any]] = []
-        for bank_name, instances in config.items():
-            if bank_name == "global":
-                continue
-            if isinstance(instances, list):
-                for idx, inst in enumerate(instances):  # type: ignore
-                    if not isinstance(inst, dict):
-                        continue
-                    n = inst.get("name")  # type: ignore
-                    name = str(n) if n else f"{bank_name.capitalize()} #{idx + 1}"  # type: ignore
-                    status.append({"bank": bank_name, "idx": idx, "name": name})
-            elif isinstance(instances, dict):
-                n = instances.get("name")  # type: ignore
-                name = str(n) if n else f"{bank_name.capitalize()} #1"  # type: ignore
-                status.append({"bank": bank_name, "idx": 0, "name": name})
-        return status
+    @extension_endpoint("config", methods=["POST"])
+    def save_config(self) -> Any:
+        try:
+            data = request.json
+            if not data or "name" not in data or "content" not in data:
+                return jsonify({"status": "error", "message": "Invalid request"}), 400
 
-    def get_config_json(self) -> str:
-        import json
+            name = data["name"]
+            if not name.startswith("api_") or not name.endswith(".yaml"):
+                return jsonify({"status": "error", "message": "Invalid config name (must match api_*.yaml)"}), 400
 
-        return json.dumps(self.parse_config())
+            # Basic safety check
+            if "/" in name or "\\" in name:
+                return jsonify({"status": "error", "message": "Invalid config name"}), 400
+
+            p = self.config_dir / name
+            p.write_text(data["content"], encoding="utf-8")
+
+            return jsonify({"status": "success", "path": str(p.absolute())})
+        except Exception as e:
+            log.exception("Failed to save config")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    @extension_endpoint("config", methods=["DELETE"])
+    def delete_config(self) -> Any:
+        try:
+            name = request.args.get("name")
+            if not name or not name.startswith("api_") or not name.endswith(".yaml"):
+                return jsonify({"status": "error", "message": "Invalid config name"}), 400
+
+            if "/" in name or "\\" in name:
+                return jsonify({"status": "error", "message": "Invalid config name"}), 400
+
+            p = self.config_dir / name
+            if p.exists():
+                p.unlink()
+
+            return jsonify({"status": "success"})
+        except Exception as e:
+            log.exception("Failed to delete config")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     @extension_endpoint("schema", methods=["GET"])
     def schema(self) -> Any:
@@ -111,251 +142,4 @@ class BankSync(FavaExtensionBase):  # type: ignore
             return jsonify(schema)
         except Exception as e:
             log.exception("Schema generation failed")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    @extension_endpoint("get_transactions", methods=["GET"])
-    def get_transactions(self) -> Any:
-        try:
-            log.info("Fetching transactions for Clearing House UI...")
-            config_dict = self.parse_config()
-            if not config_dict:
-                return jsonify({"status": "success", "accounts": {}})
-
-            from beancount.core.data import Balance, Transaction
-            from beancount.parser import printer
-
-            grouped_accounts: dict[str, list[dict[str, Any]]] = {}
-
-            # 1. Load all configured importers and fetch their data
-            for bank, instances in config_dict.items():
-                if bank == "global":
-                    continue
-                for inst_config in instances:  # type: ignore
-                    importer_model = TypeAdapter(Importer).validate_python(inst_config)  # type: ignore
-                    importer_model.cache_only = True  # type: ignore
-
-                    try:
-                        known_anchors: set[str] = set()
-
-                        acc_map: Any = getattr(importer_model, "account_map", {})  # pyright: ignore
-                        if isinstance(acc_map, dict):
-                            for v in acc_map.values():  # pyright: ignore
-                                if isinstance(v, str):
-                                    known_anchors.add(v)
-                                elif isinstance(v, dict) and "name" in v:
-                                    known_anchors.add(str(v["name"]))  # pyright: ignore
-
-                        pred_anchors: Any = getattr(importer_model, "predict_anchor_accounts", [])  # pyright: ignore
-                        if isinstance(pred_anchors, list):
-                            for a in pred_anchors:  # pyright: ignore
-                                known_anchors.add(str(a))  # pyright: ignore
-
-                        entries = importer_model.beancount_load(self.ledger.all_entries)  # type: ignore
-
-                        for entry in entries:  # type: ignore
-                            if isinstance(entry, Transaction) and entry.postings:
-                                anchor_idx = 0
-                                for idx, p in enumerate(entry.postings):
-                                    if p.account in known_anchors:
-                                        anchor_idx = idx
-                                        break
-
-                                anchor_posting = entry.postings[anchor_idx]
-                                anchor_account = anchor_posting.account
-
-                                if anchor_account not in grouped_accounts:
-                                    grouped_accounts[anchor_account] = []
-
-                                confidence = entry.meta.get("predict_confidence", 1.0) if entry.meta else 1.0
-
-                                serialized_postings: list[dict[str, Any]] = []
-                                for p in entry.postings:
-                                    serialized_postings.append({
-                                        "account": p.account,
-                                        "amount": str(p.units.number) if p.units else "",
-                                        "currency": p.units.currency if p.units else "",
-                                    })
-
-                                grouped_accounts[anchor_account].append({  # pyright: ignore
-                                    "type": "Transaction",
-                                    "id": entry.meta.get("id", "") if entry.meta else "",
-                                    "date": entry.date.strftime("%Y-%m-%d"),
-                                    "payee": entry.payee or "",
-                                    "narration": entry.narration or "",
-                                    "confidence": float(confidence),
-                                    "postings": serialized_postings,
-                                    "raw_metadata": entry.meta or {},
-                                    "beancount_plaintext": printer.format_entry(entry),
-                                })
-
-                            elif isinstance(entry, Balance):
-                                anchor_account = entry.account
-                                if anchor_account not in grouped_accounts:
-                                    grouped_accounts[anchor_account] = []
-
-                                grouped_accounts[anchor_account].append({
-                                    "type": "Balance",
-                                    "date": entry.date.strftime("%Y-%m-%d"),
-                                    "account": entry.account,
-                                    "amount": str(entry.amount.number),
-                                    "currency": entry.amount.currency,
-                                    "beancount_plaintext": printer.format_entry(entry),
-                                })
-                    except Exception as e:
-                        log.error(f"Failed to load entries for {bank}: {e}")
-
-            return jsonify({"status": "success", "accounts": grouped_accounts})
-
-        except Exception as e:
-            log.exception("get_transactions failed")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    @extension_endpoint("commit_transactions", methods=["POST"])
-    def commit_transactions(self) -> Any:
-        try:
-            data = request.json
-            if not data or "transactions" not in data:
-                return jsonify({"status": "error", "message": "No transactions provided"}), 400
-
-            import datetime
-            from decimal import Decimal
-
-            from beancount.core.amount import Amount
-            from beancount.core.data import Balance, Posting, Transaction
-
-            entries_to_insert: list[Any] = []
-
-            for tx_data in data["transactions"]:
-                if tx_data["type"] == "Transaction":
-                    date = datetime.datetime.strptime(tx_data["date"], "%Y-%m-%d").date()
-                    postings: list[Posting] = []
-                    total_amount = Decimal("0")
-                    for p in tx_data["postings"]:
-                        if not p.get("account"):
-                            continue
-
-                        amt_str = p.get("amount", "0")
-                        amt = Decimal(amt_str) if amt_str else Decimal("0")
-                        total_amount += amt
-
-                        cur = p.get("currency", "")
-
-                        postings.append(
-                            Posting(
-                                account=p["account"],
-                                units=Amount(amt, cur) if cur else None,
-                                cost=None,
-                                price=None,
-                                flag=None,
-                                meta=None,
-                            )
-                        )
-
-                    if total_amount != Decimal("0"):
-                        return jsonify({
-                            "status": "error",
-                            "message": f"Transaction on {tx_data['date']} for {tx_data.get('payee')} does not balance. Sum: {total_amount}",
-                        }), 400
-
-                    entries_to_insert.append(
-                        Transaction(
-                            meta=tx_data.get("raw_metadata", {}),
-                            date=date,
-                            flag="*",
-                            payee=tx_data.get("payee", ""),
-                            narration=tx_data.get("narration", ""),
-                            tags=frozenset(),
-                            links=frozenset(),
-                            postings=postings,
-                        )
-                    )
-                elif tx_data["type"] == "Balance":
-                    date = datetime.datetime.strptime(tx_data["date"], "%Y-%m-%d").date()
-                    amt = Decimal(str(tx_data["amount"]))
-                    entries_to_insert.append(
-                        Balance(
-                            meta={},
-                            date=date,
-                            account=tx_data["account"],
-                            amount=Amount(amt, tx_data["currency"]),
-                            tolerance=None,
-                            diff_amount=None,
-                        )
-                    )
-
-            if entries_to_insert:
-                self.ledger.file.insert_entries(entries_to_insert)
-
-            return jsonify({"status": "success"})
-        except Exception as e:
-            log.exception("commit_transactions failed")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    @extension_endpoint("sync", methods=["POST"])
-    def sync(self) -> Any:
-        try:
-            if os.environ.get("FAVA_TESTING") == "1":
-                return jsonify({"status": "error", "message": "Test mode: Mocked sync error to prevent API calls."})
-
-            data = request.json
-            if data is None:
-                raise ValueError("No JSON payload provided.")
-            bank: str = data.get("bank", "")
-            idx = int(data.get("idx", 0))
-
-            config = self.parse_config()
-            instances: list[dict[str, Any]] = config.get(bank, [])  # type: ignore
-            if isinstance(instances, dict):
-                instances = [instances]
-            if not isinstance(instances, list) or idx >= len(instances):  # type: ignore
-                raise ValueError("Instance not found")
-
-            inst_config: dict[str, Any] = instances[idx].copy()  # type: ignore
-            inst_config["importer_name"] = bank
-
-            importer_model = TypeAdapter(Importer).validate_python(inst_config)  # type: ignore
-            importer_model.cache_only = False  # type: ignore
-            _ = importer_model.load_data()  # type: ignore
-
-            return jsonify({"status": "success"})
-        except Exception as e:
-            log.exception("Sync failed")
-            return jsonify({"status": "error", "message": str(e)}), 500
-
-    @extension_endpoint("generate", methods=["POST"])
-    def generate(self) -> Any:
-        try:
-            log.info("Generating beancount file...")
-            data = request.json
-            if data is None:
-                raise ValueError("No JSON payload provided.")
-            bank: str = data.get("bank", "")
-            idx = int(data.get("idx", 0))
-
-            config = self.parse_config()
-            instances: list[dict[str, Any]] = config.get(bank, [])  # type: ignore
-            if isinstance(instances, dict):
-                instances = [instances]
-            if not isinstance(instances, list) or idx >= len(instances):  # type: ignore
-                raise ValueError("Instance not found")
-
-            inst_config: dict[str, Any] = instances[idx].copy()  # type: ignore
-            inst_config["importer_name"] = bank
-
-            importer_model = TypeAdapter(Importer).validate_python(inst_config)  # type: ignore
-            importer_model.cache_only = True  # type: ignore
-
-            entries = importer_model.beancount_load(self.ledger.all_entries)  # type: ignore
-
-            import_dir_name = config.get("global", {}).get("import_dir", "import_data")
-            import_path = Path(self.ledger.options["filename"]).parent / import_dir_name
-            import_path.mkdir(exist_ok=True, parents=True)
-
-            out_file = import_path / f"{bank}_{idx}_staged.beancount"
-            with out_file.open("w") as f:
-                printer.print_entries(entries, file=f)  # type: ignore
-
-            return jsonify({"status": "success", "file": str(out_file)})
-        except Exception as e:
-            log.exception("Generate failed")
             return jsonify({"status": "error", "message": str(e)}), 500

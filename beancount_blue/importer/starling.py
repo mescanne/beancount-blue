@@ -50,6 +50,9 @@ class AccountsResponse(BaseModel):
 
 class BalanceResponse(BaseModel):
     effectiveBalance: CurrencyAndAmount
+    clearedBalance: CurrencyAndAmount
+    totalEffectiveBalance: CurrencyAndAmount
+    totalClearedBalance: CurrencyAndAmount
 
 
 class SavingsGoals(BaseModel):
@@ -270,7 +273,21 @@ class StarlingImporter(APIImporter[StarlingData]):
         res: dict[str, tuple[Decimal, str]] = {}
         for accountUid, bal in state.balances.items():
             amount = Decimal(bal.minorUnits) / 100
-            res[str(accountUid)] = (amount, bal.currency)
+            res[str(accountUid) + ":Main"] = (amount, bal.currency)
+
+            for savingSpace in state.account_savings_spaces[accountUid]:
+                if savingSpace.totalSaved:
+                    res[str(accountUid) + ":" + savingSpace.name] = (
+                        Decimal(savingSpace.totalSaved.minorUnits / 100),
+                        savingSpace.totalSaved.currency,
+                    )
+
+            for spendingSpace in state.account_spending_spaces[accountUid]:
+                res[str(accountUid) + ":" + spendingSpace.name] = (
+                    Decimal(spendingSpace.balance.minorUnits / 100),
+                    spendingSpace.balance.currency,
+                )
+
         return res
 
     @final

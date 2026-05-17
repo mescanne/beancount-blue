@@ -1,332 +1,265 @@
 /**
- * Beancount Blue Clearing House JS
+ * API Importer Configuration Manager JS
  */
 
 export default {
     init: async function() {
-        console.log("Clearing House JS Initialized");
-        const root = document.getElementById('clearing-house-root');
+        console.log("API Config Manager Initialized");
+        const root = document.getElementById('api-config-root');
         if (!root) return;
 
         const extBaseUrl = window.location.pathname.split("extension/")[0] + "extension/BankSync/";
-        const getTransactionsUrl = extBaseUrl + "get_transactions";
-        const commitTransactionsUrl = extBaseUrl + "commit_transactions";
+        const getConfigsUrl = extBaseUrl + "configs";
+        const configUrl = extBaseUrl + "config";
+        const schemaUrl = extBaseUrl + "schema";
 
-        let transactionsData = {};
-        let currentAccount = null;
+        let currentFile = null;
+        let editor = null;
+        let schema = null;
+        let monacoLib = null;
 
-        // Fava ledger data for auto-complete
-        let ledgerData = { accounts: [], payees: [] };
-        try {
-            const dataEl = document.getElementById('ledger-data');
-            if (dataEl) {
-                ledgerData = JSON.parse(dataEl.textContent);
-            }
-        } catch (e) {
-            console.error("Failed to parse ledger data for autocomplete:", e);
+        // Ensure JS YAML is loaded
+        if (!window.jsyaml) {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js');
+        }
+        // Ensure Ajv is loaded
+        if (!window.ajv7) {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ajv/8.12.0/ajv7.min.js');
         }
 
-        async function loadData() {
+        const ajv = new window.ajv7();
+
+        // Load Monaco
+        if (!window.require) {
+            await loadScript('https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js');
+        }
+
+        window.require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.44.0/min/vs' }});
+        window.require(['vs/editor/editor.main'], async function(monaco) {
+            monacoLib = monaco;
+
+            // Create editor instance
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: '',
+                language: 'yaml',
+                theme: 'vs-light',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 13,
+                fontFamily: 'monospace'
+            });
+
+            // Handle changes for validation
+            editor.onDidChangeModelContent(() => {
+                validateYaml();
+                document.getElementById('btn-save').disabled = false;
+            });
+
+            // Load initial data
+            await fetchSchema();
+            await loadConfigs();
+        });
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        async function fetchSchema() {
             try {
-                const res = await fetch(getTransactionsUrl);
+                const res = await fetch(schemaUrl);
+                schema = await res.json();
+            } catch(e) {
+                console.error("Failed to load schema:", e);
+            }
+        }
+
+        function validateYaml() {
+            if (!schema || !editor || !monacoLib) return;
+
+            const value = editor.getValue();
+            let parsed = null;
+            const markers = [];
+
+            try {
+                parsed = window.jsyaml.load(value);
+            } catch (e) {
+                markers.push({
+                    severity: monacoLib.MarkerSeverity.Error,
+                    startLineNumber: e.mark ? e.mark.line + 1 : 1,
+                    startColumn: e.mark ? e.mark.column + 1 : 1,
+                    endLineNumber: e.mark ? e.mark.line + 1 : 1,
+                    endColumn: 100,
+                    message: e.message
+                });
+                monacoLib.editor.setModelMarkers(editor.getModel(), 'yaml', markers);
+                return;
+            }
+
+            if (parsed) {
+                const validate = ajv.compile(schema);
+                const valid = validate(parsed);
+                if (!valid) {
+                    validate.errors.forEach(err => {
+                        // Rough mapping of JSON path to line number would be complex,
+                        // just show at top for simplicity in CDN context
+                        markers.push({
+                            severity: monacoLib.MarkerSeverity.Error,
+                            startLineNumber: 1,
+                            startColumn: 1,
+                            endLineNumber: 1,
+                            endColumn: 100,
+                            message: `${err.instancePath} ${err.message}`
+                        });
+                    });
+                }
+            }
+
+            monacoLib.editor.setModelMarkers(editor.getModel(), 'yaml', markers);
+        }
+
+        async function loadConfigs() {
+            try {
+                const res = await fetch(getConfigsUrl);
                 const data = await res.json();
                 if (data.status === 'success') {
-                    transactionsData = data.accounts;
-                    renderSidebar();
+                    renderSidebar(data.files);
                 } else {
-                    document.getElementById('ch-queues').innerHTML = `<p style="color:var(--color-background-negative);">Error: ${data.message}</p>`;
+                    console.error("Error loading configs:", data.message);
                 }
-            } catch (e) {
-                document.getElementById('ch-queues').innerHTML = `<p style="color:var(--color-background-negative);">Failed to load transactions. Check console.</p>`;
+            } catch(e) {
                 console.error("Fetch error:", e);
             }
         }
 
-        function formatAccountName(acc) {
-            return acc; // Show full account name
-        }
+        function renderSidebar(files) {
+            const list = document.getElementById('api-file-list');
+            list.innerHTML = '';
 
-        function renderSidebar() {
-            const sidebar = document.getElementById('ch-queues');
-            sidebar.innerHTML = '';
-
-            const accounts = Object.keys(transactionsData);
-            if (accounts.length === 0) {
-                sidebar.innerHTML = '<p>No pending transactions.</p>';
-                document.getElementById('ch-main').innerHTML = `
-                    <div style="text-align: center; margin-top: 20%;">
-                        <h2>All caught up! 🎉</h2>
-                        <p>No transactions awaiting review.</p>
-                    </div>`;
-                return;
-            }
-
-            accounts.forEach(acc => {
-                const count = transactionsData[acc].length;
+            files.forEach(f => {
                 const div = document.createElement('div');
-                div.className = 'ch-account-item';
-                div.innerHTML = `
-                    <div style="font-weight: 500;">${formatAccountName(acc)}</div>
-                    <small style="color: var(--color-text-lighter);">${count} pending</small>
-                `;
-                div.onclick = () => {
-                    document.querySelectorAll('.ch-account-item').forEach(el => el.classList.remove('active'));
-                    div.classList.add('active');
-                    currentAccount = acc;
-                    renderGrid(acc);
-                };
-                if (currentAccount === acc) {
+                div.className = 'api-file-item';
+                div.innerText = f.name;
+                div.onclick = () => selectFile(f);
+                if (currentFile && currentFile.name === f.name) {
                     div.classList.add('active');
                 }
-                sidebar.appendChild(div);
+                list.appendChild(div);
             });
 
-            if (currentAccount && transactionsData[currentAccount]) {
-                renderGrid(currentAccount);
+            const btnNew = document.createElement('button');
+            btnNew.className = 'api-file-item';
+            btnNew.style.width = '100%';
+            btnNew.style.marginTop = '1rem';
+            btnNew.innerText = '+ New Config';
+            btnNew.onclick = createNewConfig;
+            list.appendChild(btnNew);
+        }
+
+        async function selectFile(file) {
+            currentFile = file;
+            document.querySelectorAll('.api-file-item').forEach(el => {
+                el.classList.toggle('active', el.innerText === file.name);
+            });
+
+            try {
+                const res = await fetch(`${configUrl}?name=${encodeURIComponent(file.name)}`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if(editor) {
+                        editor.setValue(data.content);
+                        document.getElementById('btn-save').disabled = true;
+                        document.getElementById('btn-import').disabled = false;
+                        document.getElementById('btn-delete').disabled = false;
+                        document.getElementById('current-file-name').innerText = file.name;
+                    }
+                }
+            } catch(e) {
+                console.error("Failed to load file:", e);
             }
         }
 
-        window.toggleCHDetail = function(idx, btn) {
-            const row = document.getElementById('detail-' + idx);
-            if (row) {
-                row.classList.toggle('open');
-                btn.classList.toggle('open');
-            }
-        };
-
-        window.addPosting = function(idx) {
-            const tx = transactionsData[currentAccount][idx];
-            tx.postings.push({ account: "", amount: "", currency: "" });
-            renderGrid(currentAccount);
-            // Re-open detail
-            const row = document.getElementById('detail-' + idx);
-            if (row) {
-                row.classList.add('open');
-                document.getElementById('btn-expander-' + idx).classList.add('open');
-            }
-        };
-
-        window.removePosting = function(txIdx, pIdx) {
-            const tx = transactionsData[currentAccount][txIdx];
-            tx.postings.splice(pIdx, 1);
-            renderGrid(currentAccount);
-            const row = document.getElementById('detail-' + txIdx);
-            if (row) {
-                row.classList.add('open');
-                document.getElementById('btn-expander-' + txIdx).classList.add('open');
-            }
-        };
-
-        window.updateCounterAccount = function(idx, value) {
-            const tx = transactionsData[currentAccount][idx];
-            if (tx.postings.length > 1) {
-                tx.postings[1].account = value;
-            } else {
-                tx.postings.push({ account: value, amount: "", currency: "" });
-            }
-            // We don't need to re-render the grid immediately, just update the data model.
-            // If they open the postings view, it will reflect there.
-        };
-
-        window.updateTxField = function(idx, field, value) {
-            transactionsData[currentAccount][idx][field] = value;
-        };
-
-        window.updatePostingField = function(txIdx, pIdx, field, value) {
-            transactionsData[currentAccount][txIdx].postings[pIdx][field] = value;
-        };
-
-        window.commitQueue = async function() {
-            if (!currentAccount) return;
-            const txns = transactionsData[currentAccount];
-
-            // Validate all transactions balance
-            for (let i = 0; i < txns.length; i++) {
-                const tx = txns[i];
-                if (tx.type === "Transaction") {
-                    let sum = 0.0;
-                    tx.postings.forEach(p => {
-                        if (p.amount) {
-                            sum += parseFloat(p.amount) || 0.0;
-                        }
-                    });
-                    if (Math.abs(sum) > 0.001) {
-                        alert(`Transaction on ${tx.date} (${tx.payee}) does not balance. Sum: ${sum}`);
-                        return;
-                    }
+        function createNewConfig() {
+            const name = prompt("Enter new filename (must end in .yaml, e.g., api_monzo.yaml):", "api_new.yaml");
+            if (name && name.startsWith("api_") && name.endsWith(".yaml")) {
+                currentFile = { name: name, path: "" }; // Path populated on save
+                if(editor) {
+                    const stub = `importer_name: monzo\nclient_id: ""\nclient_secret: ""\naccount_map:\n  "acc_123": "Assets:Bank"\n`;
+                    editor.setValue(stub);
+                    document.getElementById('btn-save').disabled = false;
+                    document.getElementById('btn-import').disabled = true;
+                    document.getElementById('btn-delete').disabled = true;
+                    document.getElementById('current-file-name').innerText = name + " (Unsaved)";
                 }
+                // Mock active in sidebar
+                document.querySelectorAll('.api-file-item').forEach(el => el.classList.remove('active'));
+            } else if (name) {
+                alert("Name must start with 'api_' and end with '.yaml'");
             }
+        }
 
-            const btn = document.getElementById('btn-commit-queue');
-            const originalText = btn.innerText;
-            btn.disabled = true;
-            btn.innerText = "Committing...";
+        document.getElementById('btn-save').onclick = async () => {
+            if (!currentFile || !editor) return;
+            const content = editor.getValue();
 
             try {
-                const res = await fetch(commitTransactionsUrl, {
+                const res = await fetch(configUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transactions: txns })
+                    body: JSON.stringify({ name: currentFile.name, content: content })
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    delete transactionsData[currentAccount];
-                    currentAccount = null;
-                    renderSidebar();
-                    if (Object.keys(transactionsData).length === 0) {
-                        document.getElementById('ch-main').innerHTML = `
-                            <div style="text-align: center; margin-top: 20%;">
-                                <h2>Queue Committed! 🎉</h2>
-                                <p>Transactions saved successfully.</p>
-                            </div>`;
-                    }
+                    currentFile.path = data.path;
+                    document.getElementById('btn-save').disabled = true;
+                    document.getElementById('btn-import').disabled = false;
+                    document.getElementById('btn-delete').disabled = false;
+                    document.getElementById('current-file-name').innerText = currentFile.name;
+                    await loadConfigs(); // refresh list to ensure it's there
                 } else {
-                    alert("Commit failed: " + data.message);
+                    alert("Save failed: " + data.message);
                 }
-            } catch (err) {
-                alert("Commit error: " + err.message);
-            } finally {
-                if (document.getElementById('btn-commit-queue')) {
-                    btn.disabled = false;
-                    btn.innerText = originalText;
-                }
+            } catch(e) {
+                alert("Save error: " + e.message);
             }
         };
 
-        function renderGrid(account) {
-            const main = document.getElementById('ch-main');
-            const txns = transactionsData[account];
+        document.getElementById('btn-delete').onclick = async () => {
+            if (!currentFile) return;
+            if (!confirm(`Delete ${currentFile.name}?`)) return;
 
-            let html = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h2 style="margin: 0;">Reviewing: ${formatAccountName(account)}</h2>
-                    <div>
-                        <span style="color: var(--color-text-lighter); font-weight: 500; margin-right: 15px;">${txns.length} entries</span>
-                        <button id="btn-commit-queue" class="btn btn-primary" onclick="window.commitQueue()">Commit Queue</button>
-                    </div>
-                </div>
-            `;
-
-            html += `<table class="ch-grid">
-                <thead>
-                    <tr>
-                        <th style="width: 40px; text-align: center;">#</th>
-                        <th style="width: 100px;">Date</th>
-                        <th>Payee & Narration</th>
-                        <th style="width: 250px;">Account (Predicted)</th>
-                        <th style="width: 100px; text-align: right;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-
-            txns.forEach((tx, idx) => {
-                if (tx.type === "Transaction") {
-                    const confClass = tx.confidence >= 0.90 ? 'confidence-high' : 'confidence-low';
-                    const confidencePct = (tx.confidence * 100).toFixed(0);
-
-                    // Determine main account to show in grid
-                    let displayAcc = tx.postings.length > 1 ? tx.postings[1].account : "";
-                    let displayAmt = tx.postings.length > 0 ? tx.postings[0].amount : "";
-                    let displayCur = tx.postings.length > 0 ? tx.postings[0].currency : "";
-
-                    html += `
-                        <tr>
-                            <td class="${confClass}" style="text-align: center;">
-                                <button id="btn-expander-${idx}" class="ch-btn-expander" onclick="window.toggleCHDetail(${idx}, this)">▶</button>
-                            </td>
-                            <td><input type="date" value="${tx.date}" onchange="window.updateTxField(${idx}, 'date', this.value)" style="width: 110px; border:none; background:transparent;"></td>
-                            <td>
-                                <input type="text" value="${tx.payee}" placeholder="Payee" onchange="window.updateTxField(${idx}, 'payee', this.value)" list="ch-payees" style="font-weight: 500; width: 100%; border:none; background:transparent;">
-                                <input type="text" value="${tx.narration}" placeholder="Narration" onchange="window.updateTxField(${idx}, 'narration', this.value)" style="font-size: 0.9em; color: var(--color-text-lighter); width: 100%; border:none; background:transparent; margin-top:2px;">
-                            </td>
-                            <td>
-                                <input type="text" value="${displayAcc}" placeholder="Counteraccount" onchange="window.updateCounterAccount(${idx}, this.value)" list="ch-accounts" style="font-weight: 500; width: 100%; border:none; background:transparent;">
-                                <div style="font-size: 0.85em; color: var(--color-text-lighter);">Confidence: ${confidencePct}%</div>
-                            </td>
-                            <td style="text-align: right; font-variant-numeric: tabular-nums; font-weight: 500;">
-                                ${displayAmt} ${displayCur}
-                            </td>
-                        </tr>
-                        <tr class="detail-row" id="detail-${idx}">
-                            <td colspan="5">
-                                <div class="detail-content" style="padding: 15px; border-radius: 6px; background: var(--color-sidebar-background);">
-                                    <div style="margin-bottom: 10px;">
-                                        <strong>Original Metadata</strong>
-                                        <div style="margin-top: 5px; font-size: 0.85em; background: var(--color-background); padding: 8px; border: 1px solid var(--color-sidebar-border); border-radius: 4px;">
-                                            ${Object.entries(tx.raw_metadata || {}).map(([k, v]) => `
-                                                <div style="display: flex; margin-bottom: 4px; border-bottom: 1px solid var(--color-sidebar-border); padding-bottom: 2px;">
-                                                    <div style="width: 160px; font-weight: bold; color: var(--color-text-lighter);">${k}</div>
-                                                    <div style="flex: 1; word-break: break-all; font-family: monospace;">${v}</div>
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    </div>
-                                    <div style="margin-bottom: 10px; display:flex; justify-content: space-between;">
-                                        <strong>Postings</strong>
-                                        <button class="btn" onclick="window.addPosting(${idx})" style="padding: 2px 8px; font-size: 0.85em;">+ Add Posting</button>
-                                    </div>
-                                    <table style="width: 100%; margin-bottom: 10px;">
-                    `;
-
-                    tx.postings.forEach((p, pIdx) => {
-                        html += `
-                            <tr>
-                                <td style="padding: 4px;">
-                                    <input type="text" value="${p.account}" onchange="window.updatePostingField(${idx}, ${pIdx}, 'account', this.value)" list="ch-accounts" style="width: 100%; padding: 4px;" placeholder="Account">
-                                </td>
-                                <td style="padding: 4px; width: 120px;">
-                                    <input type="text" value="${p.amount}" onchange="window.updatePostingField(${idx}, ${pIdx}, 'amount', this.value)" style="width: 100%; padding: 4px; text-align: right;" placeholder="Amount">
-                                </td>
-                                <td style="padding: 4px; width: 60px;">
-                                    <input type="text" value="${p.currency}" onchange="window.updatePostingField(${idx}, ${pIdx}, 'currency', this.value)" style="width: 100%; padding: 4px;" placeholder="Cur">
-                                </td>
-                                <td style="padding: 4px; width: 30px; text-align: center;">
-                                    <button onclick="window.removePosting(${idx}, ${pIdx})" style="color: var(--color-background-negative); border: none; background: transparent; cursor: pointer;">&times;</button>
-                                </td>
-                            </tr>
-                        `;
-                    });
-
-                    html += `
-                                    </table>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                } else if (tx.type === "Balance") {
-                    html += `
-                        <tr style="background: var(--color-sidebar-background);">
-                            <td style="text-align: center;">⚖️</td>
-                            <td>${tx.date}</td>
-                            <td colspan="2">
-                                <strong>Expected Balance</strong> for ${tx.account.split(':').slice(-2).join(':')}
-                            </td>
-                            <td style="text-align: right; font-variant-numeric: tabular-nums; font-weight: bold;">
-                                ${tx.amount} ${tx.currency}
-                            </td>
-                        </tr>
-                    `;
+            try {
+                const res = await fetch(`${configUrl}?name=${encodeURIComponent(currentFile.name)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    currentFile = null;
+                    if(editor) editor.setValue('');
+                    document.getElementById('btn-save').disabled = true;
+                    document.getElementById('btn-import').disabled = true;
+                    document.getElementById('btn-delete').disabled = true;
+                    document.getElementById('current-file-name').innerText = 'Select a file';
+                    await loadConfigs();
+                } else {
+                    alert("Delete failed: " + data.message);
                 }
-            });
+            } catch(e) {
+                alert("Delete error: " + e.message);
+            }
+        };
 
-            html += `</tbody></table>`;
-
-            // Datalists for autocomplete
-            html += `<datalist id="ch-accounts">`;
-            ledgerData.accounts.forEach(acc => {
-                html += `<option value="${acc}">`;
-            });
-            html += `</datalist>`;
-
-            html += `<datalist id="ch-payees">`;
-            ledgerData.payees.forEach(p => {
-                html += `<option value="${p}">`;
-            });
-            html += `</datalist>`;
-
-            main.innerHTML = html;
-        }
-
-        loadData();
+        document.getElementById('btn-import').onclick = () => {
+            if (!currentFile || !currentFile.path) return;
+            // Native Fava delegation!
+            const favaImportUrl = "/import?auto_extract=" + encodeURIComponent(currentFile.path) + "&importer=API+Importer";
+            window.location.href = favaImportUrl;
+        };
     }
 };
