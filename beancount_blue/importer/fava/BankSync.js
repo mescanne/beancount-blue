@@ -299,10 +299,9 @@ export default {
 
         document.getElementById('btn-import').onclick = () => {
             if (!currentFile || !currentFile.path) return;
-            // Native Fava delegation using the ledger slug base URL!
-            const favaBaseUrl = window.location.pathname.split("extension/")[0];
-            const favaImportUrl = favaBaseUrl + "import?auto_extract=" + encodeURIComponent(currentFile.path) + "&importer=API+Importer";
-            window.location.href = favaImportUrl;
+            // Native Fava delegation: Use the new globally hoisted GlobalExtract modal overlay
+            // This prevents navigating away from the extension dashboard context.
+            window.location.hash = `extract?filename=${encodeURIComponent(currentFile.path)}&importer=API+Importer`;
         };
     }
 };
