@@ -56,6 +56,10 @@ export default {
                 document.getElementById('btn-save').disabled = false;
             });
 
+            document.getElementById('current-file-name-input').addEventListener('input', () => {
+                document.getElementById('btn-save').disabled = false;
+            });
+
             // Load initial data
             await fetchSchema();
             await loadConfigs();
@@ -177,7 +181,7 @@ export default {
                         document.getElementById('btn-save').disabled = true;
                         document.getElementById('btn-import').disabled = false;
                         document.getElementById('btn-delete').disabled = false;
-                        document.getElementById('current-file-name').innerText = file.name;
+                        syncFilenameDisplay(file.name);
                     }
                 }
             } catch(e) {
@@ -186,27 +190,54 @@ export default {
         }
 
         function createNewConfig() {
-            const name = prompt("Enter new filename (must end in .yaml, e.g., api_monzo.yaml):", "api_new.yaml");
-            if (name && name.startsWith("api_") && name.endsWith(".yaml")) {
-                currentFile = { name: name, path: "" }; // Path populated on save
-                if(editor) {
-                    const stub = `importer_name: monzo\nclient_id: ""\nclient_secret: ""\naccount_map:\n  "acc_123": "Assets:Bank"\n`;
-                    editor.setValue(stub);
-                    document.getElementById('btn-save').disabled = false;
-                    document.getElementById('btn-import').disabled = true;
-                    document.getElementById('btn-delete').disabled = true;
-                    document.getElementById('current-file-name').innerText = name + " (Unsaved)";
-                }
-                // Mock active in sidebar
-                document.querySelectorAll('.api-file-item').forEach(el => el.classList.remove('active'));
-            } else if (name) {
-                alert("Name must start with 'api_' and end with '.yaml'");
+            let name = "api_new.yaml";
+            let counter = 1;
+            const existingNames = Array.from(document.querySelectorAll('.api-file-item')).map(el => el.innerText);
+            while (existingNames.includes(name)) {
+                name = `api_new_${counter}.yaml`;
+                counter++;
             }
+
+            currentFile = { name: name, path: "" }; // Path populated on save
+            if(editor) {
+                const stub = `importer_name: monzo\nclient_id: ""\nclient_secret: ""\naccount_map:\n  "acc_123": "Assets:Bank"\n`;
+                editor.setValue(stub);
+                document.getElementById('btn-save').disabled = false;
+                document.getElementById('btn-import').disabled = true;
+                document.getElementById('btn-delete').disabled = true;
+
+                document.getElementById('current-file-name-display').style.display = 'none';
+                const nameInput = document.getElementById('current-file-name-input');
+                nameInput.style.display = 'inline-block';
+                nameInput.value = name;
+                nameInput.focus();
+                nameInput.select();
+            }
+            // Mock active in sidebar
+            document.querySelectorAll('.api-file-item').forEach(el => el.classList.remove('active'));
+        }
+
+        function syncFilenameDisplay(filename) {
+            document.getElementById('current-file-name-display').style.display = 'inline-block';
+            document.getElementById('current-file-name-display').innerText = filename;
+            document.getElementById('current-file-name-input').style.display = 'none';
+            document.getElementById('current-file-name-input').value = filename;
         }
 
         document.getElementById('btn-save').onclick = async () => {
             if (!currentFile || !editor) return;
             const content = editor.getValue();
+
+            const nameInput = document.getElementById('current-file-name-input');
+            const newName = nameInput.style.display !== 'none' ? nameInput.value.trim() : currentFile.name;
+
+            if (!newName.startsWith("api_") || !newName.endsWith(".yaml")) {
+                alert("Name must start with 'api_' and end with '.yaml'");
+                return;
+            }
+
+            const oldName = currentFile.name;
+            currentFile.name = newName;
 
             try {
                 const res = await fetch(configUrl, {
@@ -217,10 +248,21 @@ export default {
                 const data = await res.json();
                 if (data.status === 'success') {
                     currentFile.path = data.path;
+
+                    if (oldName !== newName && currentFile.path && oldName !== "api_new.yaml" && !oldName.startsWith("api_new_")) {
+                        // Optionally clean up the old file if it was renamed
+                        try {
+                            await fetch(`${configUrl}?name=${encodeURIComponent(oldName)}`, { method: 'DELETE' });
+                        } catch(e) {
+                            console.warn("Failed to delete old file during rename", e);
+                        }
+                    }
+
                     document.getElementById('btn-save').disabled = true;
                     document.getElementById('btn-import').disabled = false;
                     document.getElementById('btn-delete').disabled = false;
-                    document.getElementById('current-file-name').innerText = currentFile.name;
+
+                    syncFilenameDisplay(currentFile.name);
                     await loadConfigs(); // refresh list to ensure it's there
                 } else {
                     alert("Save failed: " + data.message);
@@ -245,7 +287,7 @@ export default {
                     document.getElementById('btn-save').disabled = true;
                     document.getElementById('btn-import').disabled = true;
                     document.getElementById('btn-delete').disabled = true;
-                    document.getElementById('current-file-name').innerText = 'Select a file';
+                    syncFilenameDisplay('Select a file');
                     await loadConfigs();
                 } else {
                     alert("Delete failed: " + data.message);
@@ -257,8 +299,9 @@ export default {
 
         document.getElementById('btn-import').onclick = () => {
             if (!currentFile || !currentFile.path) return;
-            // Native Fava delegation!
-            const favaImportUrl = "/import?auto_extract=" + encodeURIComponent(currentFile.path) + "&importer=API+Importer";
+            // Native Fava delegation using the ledger slug base URL!
+            const favaBaseUrl = window.location.pathname.split("extension/")[0];
+            const favaImportUrl = favaBaseUrl + "import?auto_extract=" + encodeURIComponent(currentFile.path) + "&importer=API+Importer";
             window.location.href = favaImportUrl;
         };
     }

@@ -78,7 +78,10 @@
     </div>
     <div class="api-main">
         <div class="api-header">
-            <h2 id="current-file-name">Select a file</h2>
+            <div>
+                <h2 id="current-file-name-display">Select a file</h2>
+                <input type="text" id="current-file-name-input" style="display: none; font-size: 1.2em; font-weight: bold; border: 1px solid var(--color-sidebar-border); background: var(--color-background); color: var(--color-text); padding: 4px; border-radius: 4px; width: 300px;" />
+            </div>
             <button id="btn-delete" class="btn" style="color: var(--color-background-negative); border: none; background: transparent; cursor: pointer;" disabled>Delete</button>
         </div>
         <div class="api-editor-container">
