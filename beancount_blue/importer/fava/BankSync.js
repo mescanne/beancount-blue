@@ -29,6 +29,9 @@ export default {
 
         const ajv = new window.ajv7();
 
+        // Load initial sidebar data immediately
+        loadConfigs();
+
         // Load Monaco
         if (!window.require) {
             await loadScript('https://unpkg.com/monaco-editor@0.44.0/min/vs/loader.js');
@@ -38,8 +41,11 @@ export default {
         window.require(['vs/editor/editor.main'], async function(monaco) {
             monacoLib = monaco;
 
+            const container = document.getElementById('editor-container');
+            if (!container) return; // In case user navigated away before Monaco loaded
+
             // Create editor instance
-            editor = monaco.editor.create(document.getElementById('editor-container'), {
+            editor = monaco.editor.create(container, {
                 value: '',
                 language: 'yaml',
                 theme: 'vs-light',
@@ -60,9 +66,14 @@ export default {
                 document.getElementById('btn-save').disabled = false;
             });
 
-            // Load initial data
+            // Load schema for validation
             await fetchSchema();
-            await loadConfigs();
+
+            // If a file was selected while Monaco was loading, show it now
+            if (currentFile && currentFile.contentLoaded) {
+                editor.setValue(currentFile.contentLoaded);
+                document.getElementById('btn-save').disabled = true;
+            }
         });
 
         function loadScript(src) {
@@ -176,13 +187,14 @@ export default {
                 const res = await fetch(`${configUrl}?name=${encodeURIComponent(file.name)}`);
                 const data = await res.json();
                 if (data.status === 'success') {
+                    currentFile.contentLoaded = data.content;
                     if(editor) {
                         editor.setValue(data.content);
                         document.getElementById('btn-save').disabled = true;
-                        document.getElementById('btn-import').disabled = false;
-                        document.getElementById('btn-delete').disabled = false;
-                        syncFilenameDisplay(file.name);
                     }
+                    document.getElementById('btn-import').disabled = false;
+                    document.getElementById('btn-delete').disabled = false;
+                    syncFilenameDisplay(file.name);
                 }
             } catch(e) {
                 console.error("Failed to load file:", e);
