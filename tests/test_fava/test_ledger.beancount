@@ -1,0 +1,9 @@
+option "title" "Test Ledger"
+2020-01-01 custom "fava-extension" "beancount_blue.importer.fava.bank_sync"
+2020-01-01 custom "fava-option" "import-config" "import_config.py"
+2020-01-01 custom "fava-option" "import-dirs" "api_configs"
+
+2020-01-01 open Assets:UK:Monzo:Current GBP
+2020-01-01 open Assets:UK:Starling:Joint GBP
+2020-01-01 open Liabilities:UK:Amex GBP
+2020-01-01 open Expenses:Food

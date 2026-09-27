@@ -1,0 +1,16 @@
+# Default configuration for Beancount Blue Importers
+global:
+  import_dir: "import_data"
+
+monzo:
+  - name: "My Monzo"
+    client_id: "your_client_id"
+    client_secret: "your_client_secret"
+    account_map:
+      acc_123: "Assets:UK:Monzo:Current"
+
+starling:
+  - name: "My Starling"
+    personal_access_token: "your_token"
+    account_map:
+      acc_456: "Assets:UK:Starling:Current"

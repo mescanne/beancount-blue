@@ -1,0 +1,10 @@
+importer_name: "monzo"
+client_id: "dummy"
+client_secret: "dummy"
+cache_only: true
+cache_data: "monzo.json.gz"
+auto_predict: true
+predict_ledger_path: "coffee_ledger.beancount"
+predict_model_path: "predictor_model.joblib"
+account_map:
+  "acc_coffee": "Assets:UK:Monzo:Main"

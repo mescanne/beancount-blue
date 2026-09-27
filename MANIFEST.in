@@ -1,0 +1,11 @@
+prune tests
+prune .github
+prune .gitignore
+prune conductor
+prune .vscode
+prune frontend
+prune .antigravitycli
+exclude PLAN.md
+exclude NEXT_STEPS.md
+exclude cliff.toml
+exclude codecov.yaml

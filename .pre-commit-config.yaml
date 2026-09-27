@@ -1,0 +1,49 @@
+repos:
+  # Standard hooks can remain remote as they don't depend on your local env
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v5.0.0"
+    hooks:
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Local hooks run tools from your environment via `uv run`
+  - repo: local
+    hooks:
+      # 1. Sync dependencies (Run first to ensure environment is ready)
+      - id: uv-sync
+        name: uv sync
+        entry: uv sync
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # 2. Ruff Linter
+      - id: ruff
+        name: ruff
+        # --force-exclude is crucial for local hooks so ruff respects your
+        # pyproject.toml excludes even when pre-commit passes specific file paths
+        entry: uv run ruff check --force-exclude
+        language: system
+        types: [python]
+        args: [--exit-non-zero-on-fix]
+
+      # 3. Ruff Formatter
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types: [python]
+
+      # 4. Basedpyright
+      - id: basedpyright
+        name: basedpyright
+        entry: uv run basedpyright
+        language: system
+        types: [python]
+        # Type checkers usually need the full project context to resolve imports correctly.
+        # pass_filenames: false forces it to run on the whole project (like in CI).
+        pass_filenames: false
