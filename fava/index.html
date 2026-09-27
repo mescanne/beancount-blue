@@ -12,29 +12,31 @@
         <meta name="author" content="Mark Scannell">
       
       
-        <link rel="canonical" href="https://mescanne.github.io/beancount-blue/">
+        <link rel="canonical" href="https://mescanne.github.io/beancount-blue/fava/">
       
       
+        <link rel="prev" href="..">
       
-        <link rel="next" href="fava/">
+      
+        <link rel="next" href="../modules/">
       
       
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>beancount-blue</title>
+        <title>Fava Extension - beancount-blue</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +55,9 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#welcome-to-beancount-blue" class="md-skip">
+        <a href="#fava-web-extension-banksync" class="md-skip">
           Skip to content
         </a>
       
@@ -96,7 +98,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="beancount-blue" class="md-header__button md-logo" aria-label="beancount-blue" data-md-component="logo">
+    <a href=".." title="beancount-blue" class="md-header__button md-logo" aria-label="beancount-blue" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -116,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Fava Extension
             
           </span>
         </div>
@@ -232,7 +234,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="beancount-blue" class="md-nav__button md-logo" aria-label="beancount-blue" data-md-component="logo">
+    <a href=".." title="beancount-blue" class="md-nav__button md-logo" aria-label="beancount-blue" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -259,6 +261,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -278,7 +307,7 @@
   <span class="md-ellipsis">
     
   
-    Home
+    Fava Extension
   
 
     
@@ -289,14 +318,14 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <a href="." class="md-nav__link md-nav__link--active">
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
     
   
-    Home
+    Fava Extension
   
 
     
@@ -322,55 +351,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#enabling-banksync-in-your-ledger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        Enabling BankSync in your Ledger
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Key Features">
+    <nav class="md-nav" aria-label="Enabling BankSync in your Ledger">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#automated-banking-api-importers" class="md-nav__link">
+  <a href="#configuration-options" class="md-nav__link">
     <span class="md-ellipsis">
       
-        🏦 Automated Banking API Importers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#machine-learning-auto-categorization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🤖 Machine Learning Auto-Categorization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fava-web-management-extension-banksync" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🌐 Fava Web Management Extension (BankSync)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#core-accounting-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🧮 Core Accounting Plugins
+        Configuration Options
       
     </span>
   </a>
@@ -383,21 +379,71 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-centralized-integrations-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Centralized Integrations Dashboard
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation-guide" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#2-interactive-synchronization-import" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Guide
+        2. Interactive Synchronization &amp; Import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-adding-new-integrations-add-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Adding New Integrations (+ Add API)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-built-in-monaco-yaml-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Built-in Monaco YAML Editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth-redirect-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Redirect Callbacks
       
     </span>
   </a>
@@ -419,34 +465,7 @@
   
   
     <li class="md-nav__item">
-      <a href="fava/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Fava Extension
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="modules/" class="md-nav__link">
+      <a href="../modules/" class="md-nav__link">
         
   
   
@@ -473,7 +492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="importer/" class="md-nav__link">
+      <a href="../importer/" class="md-nav__link">
         
   
   
@@ -520,55 +539,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#enabling-banksync-in-your-ledger" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        Enabling BankSync in your Ledger
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Key Features">
+    <nav class="md-nav" aria-label="Enabling BankSync in your Ledger">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#automated-banking-api-importers" class="md-nav__link">
+  <a href="#configuration-options" class="md-nav__link">
     <span class="md-ellipsis">
       
-        🏦 Automated Banking API Importers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#machine-learning-auto-categorization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🤖 Machine Learning Auto-Categorization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fava-web-management-extension-banksync" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🌐 Fava Web Management Extension (BankSync)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#core-accounting-plugins" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        🧮 Core Accounting Plugins
+        Configuration Options
       
     </span>
   </a>
@@ -581,21 +567,71 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-centralized-integrations-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Centralized Integrations Dashboard
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#documentation-guide" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#2-interactive-synchronization-import" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Guide
+        2. Interactive Synchronization &amp; Import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-adding-new-integrations-add-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Adding New Integrations (+ Add API)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-built-in-monaco-yaml-editor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Built-in Monaco YAML Editor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth-redirect-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Redirect Callbacks
       
     </span>
   </a>
@@ -622,52 +658,52 @@
   
 
 
-<h1 id="welcome-to-beancount-blue">Welcome to beancount-blue<a class="headerlink" href="#welcome-to-beancount-blue" title="Permanent link">&para;</a></h1>
-<p><a href="https://github.com/mescanne/beancount-blue/releases"><img alt="Release" src="https://img.shields.io/github/v/release/mescanne/beancount-blue" /></a>
-<a href="https://pypi.org/project/beancount-blue/"><img alt="PyPI" src="https://img.shields.io/pypi/v/beancount-blue" /></a>
-<a href="https://github.com/mescanne/beancount-blue/actions/workflows/main.yml?query=branch%3Amain"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/mescanne/beancount-blue/main.yml?branch=main" /></a>
-<a href="https://github.com/mescanne/beancount-blue/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/mescanne/beancount-blue" /></a>
-<a href="https://pypi.org/project/beancount-blue/"><img alt="Python Versions" src="https://img.shields.io/pypi/pyversions/beancount-blue" /></a></p>
-<p><strong><code>beancount-blue</code></strong> is a comprehensive, production-tested toolkit for <a href="https://beancount.github.io/docs/">Beancount</a> and <a href="https://beancount.github.io/fava/">Fava</a>. It provides automated Open Banking API integrations, machine-learning-driven auto-categorization, a native Fava web management interface, and essential accounting plugins.</p>
+<h1 id="fava-web-extension-banksync">Fava Web Extension: BankSync<a class="headerlink" href="#fava-web-extension-banksync" title="Permanent link">&para;</a></h1>
+<p><code>beancount-blue</code> includes <strong>BankSync</strong>, a native web extension for <a href="https://beancount.github.io/fava/">Fava</a> that provides a visual dashboard for managing banking integrations, monitoring balances, and importing transactions directly within your browser.</p>
 <hr />
-<h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
-<h3 id="automated-banking-api-importers">🏦 Automated Banking API Importers<a class="headerlink" href="#automated-banking-api-importers" title="Permanent link">&para;</a></h3>
-<p>Connect directly to UK and European bank APIs to ingest transactions and balances automatically:
-* <strong>Monzo:</strong> Native OAuth integration supporting personal, joint, Flex, pots, and child accounts.
-* <strong>Starling:</strong> Personal Access Token integration supporting primary accounts, categories, and spending spaces.
-* <strong>TrueLayer (Open Banking):</strong> Connect to major UK/EU banks and credit cards (Amex, Chase, Barclaycard, etc.).</p>
-<h3 id="machine-learning-auto-categorization">🤖 Machine Learning Auto-Categorization<a class="headerlink" href="#machine-learning-auto-categorization" title="Permanent link">&para;</a></h3>
-<p>Includes a native machine learning categorization pipeline based on <code>scikit-learn</code> (<code>SGDClassifier</code> with TF-IDF vectorization):
-* Automatically trains on your existing ledger entries.
-* Predicts payees and counter-accounts with configurable confidence thresholds.
-* Automatically retrains when your ledger file is edited.</p>
-<h3 id="fava-web-management-extension-banksync">🌐 Fava Web Management Extension (BankSync)<a class="headerlink" href="#fava-web-management-extension-banksync" title="Permanent link">&para;</a></h3>
-<p>An embedded web UI inside Fava:
-* <strong>Integrations Dashboard:</strong> Real-time table displaying configured bank integrations, latest balances, sync status, and errors.
-* <strong>Interactive Sync:</strong> Trigger API syncs and review imports directly from the browser.
-* <strong>In-Browser Configuration:</strong> Add new APIs (<code>+ Add API</code>) and edit configurations in a built-in Monaco YAML editor.</p>
-<h3 id="core-accounting-plugins">🧮 Core Accounting Plugins<a class="headerlink" href="#core-accounting-plugins" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong><a href="modules/#amortize">Amortization</a>:</strong> Spread multi-month expenses (e.g. annual insurance, subscriptions) evenly across time using automated equity balancing.</li>
-<li><strong><a href="modules/#uk-capital-gains">UK Capital Gains Tax</a>:</strong> Calculate capital gains following HMRC rules (same-day rule, 30-day "bed and breakfast" rule, and Section 104 average-cost holding pools).</li>
-<li><strong><a href="modules/#clear-residual-lots">Clear Residual Lots</a>:</strong> Automatically balances and cleans fractional leftover lots that accumulate when using the <code>NONE</code> booking method.</li>
-<li><strong><a href="modules/#auto-tagger">Auto-Tagger</a>:</strong> Automatically applies tags to transactions based on involved accounts.</li>
-</ul>
-<hr />
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<p>Install <code>beancount-blue</code> using <code>pip</code>:</p>
-<pre><code class="language-bash">pip install beancount-blue
+<h2 id="enabling-banksync-in-your-ledger">Enabling BankSync in your Ledger<a class="headerlink" href="#enabling-banksync-in-your-ledger" title="Permanent link">&para;</a></h2>
+<p>To enable the extension in Fava, add the following directive to your main <code>.beancount</code> ledger file:</p>
+<pre><code class="language-beancount">2020-01-01 custom &quot;fava-extension&quot; &quot;beancount_blue.importer.fava.bank_sync&quot;
 </code></pre>
-<p>Or using <code>uv</code>:</p>
-<pre><code class="language-bash">uv add beancount-blue
+<h3 id="configuration-options">Configuration Options<a class="headerlink" href="#configuration-options" title="Permanent link">&para;</a></h3>
+<p>You can optionally pass a configuration dictionary as the last argument:</p>
+<pre><code class="language-beancount">2020-01-01 custom &quot;fava-extension&quot; &quot;beancount_blue.importer.fava.bank_sync&quot; &quot;{'config_dir': 'api_configs'}&quot;
 </code></pre>
-<hr />
-<h2 id="documentation-guide">Documentation Guide<a class="headerlink" href="#documentation-guide" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="fava/">Fava Extension Guide</a>:</strong> How to enable and use the BankSync dashboard in Fava.</li>
-<li><strong><a href="importer/">API Importers &amp; ML Predictor</a>:</strong> Configuration guide for Monzo, Starling, TrueLayer, ML auto-categorization, and the <code>bean-blue-importer</code> CLI.</li>
-<li><strong><a href="modules/">Core Plugins Reference</a>:</strong> Usage guides and directives for <code>amortize</code>, <code>calc_gains</code>, <code>clear_residual_lots</code>, and <code>tag</code>.</li>
+<li><strong><code>config_dir</code></strong> <em>(string, default: <code>"api_configs"</code>)</em>: The directory where your bank configuration YAML files are stored. If relative, it is resolved relative to the ledger file's location.</li>
 </ul>
+<p>Once added, a new <strong>"API Importers"</strong> entry will appear in the Fava sidebar navigation.</p>
+<hr />
+<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
+<h3 id="1-centralized-integrations-dashboard">1. Centralized Integrations Dashboard<a class="headerlink" href="#1-centralized-integrations-dashboard" title="Permanent link">&para;</a></h3>
+<p>The main view renders a clean overview table of all bank integrations found in your <code>config_dir</code>:
+* <strong>Integration Name &amp; File:</strong> The configuration filename (e.g. <code>api_monzo.yaml</code>).
+* <strong>Importer Type:</strong> The provider type (<code>monzo</code>, <code>starling</code>, or <code>truelayer</code>).
+* <strong>Balances:</strong> Real-time balances reported by the bank API across your accounts and spaces.
+* <strong>Last Sync:</strong> Timestamp of the last successful synchronization.
+* <strong>Status:</strong> Visual indicator (<code>OK</code> or <code>Error</code>) with expandable error diagnostics if a sync fails.</p>
+<h3 id="2-interactive-synchronization-import">2. Interactive Synchronization &amp; Import<a class="headerlink" href="#2-interactive-synchronization-import" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Sync Button:</strong> Click <strong>Sync</strong> on any integration row to trigger an immediate API refresh. The extension fetches new transactions, updates the cached balance state, and notifies you when finished.</li>
+<li><strong>Import Review:</strong> Click <strong>Import</strong> to open Fava's native transaction review overlay. You can review pending and settled transactions, adjust auto-predicted counter-accounts, and commit them directly to your ledger files.</li>
+</ul>
+<h3 id="3-adding-new-integrations-add-api">3. Adding New Integrations (<code>+ Add API</code>)<a class="headerlink" href="#3-adding-new-integrations-add-api" title="Permanent link">&para;</a></h3>
+<p>Click the <strong>+ Add API</strong> button in the dashboard to open the new integration wizard:
+1. Select your provider (<code>Monzo</code>, <code>Starling</code>, or <code>TrueLayer</code>).
+2. Give the integration a recognizable name (e.g. <code>joint_current</code>).
+3. Click <strong>Create</strong>; BankSync generates a boilerplate YAML configuration in your <code>config_dir</code> and immediately opens it in the editor.</p>
+<h3 id="4-built-in-monaco-yaml-editor">4. Built-in Monaco YAML Editor<a class="headerlink" href="#4-built-in-monaco-yaml-editor" title="Permanent link">&para;</a></h3>
+<p>Click <strong>Edit</strong> on any integration to open the embedded Monaco editor:
+* Edit credentials, account maps, and ML prediction settings without leaving the browser.
+* Real-time YAML syntax checking and Pydantic validation before saving.
+* Sensitive fields (like <code>client_secret</code> and <code>personal_access_token</code>) are securely stored in your local configuration files.</p>
+<hr />
+<h2 id="oauth-redirect-callbacks">OAuth Redirect Callbacks<a class="headerlink" href="#oauth-redirect-callbacks" title="Permanent link">&para;</a></h2>
+<p>For integrations requiring OAuth (such as Monzo and TrueLayer):
+1. Configure your developer application's redirect URI to:
+   <code>http://localhost:5000/&lt;ledger_slug&gt;/extension/BankSync/callback</code>
+   <em>(or the port where your Fava instance runs, e.g. <code>http://localhost:8000/...</code>)</em>
+2. When authorizing, the bank will redirect back to Fava, and BankSync will automatically capture the authorization code, exchange it for tokens, and persist the state.</p>
 
 
 
@@ -748,10 +784,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": [], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
