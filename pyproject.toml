@@ -3,6 +3,7 @@ name = "beancount_blue"
 dynamic = ["version"]
 description = "Set of useful plugins and extensions for Beancount and Fava."
 authors = [{ name = "Mark Scannell", email = "mescanne@gmail.com" }]
+license = { text = "Apache-2.0" }
 readme = "README.md"
 keywords = ['python']
 requires-python = ">=3.12,<4.0"
