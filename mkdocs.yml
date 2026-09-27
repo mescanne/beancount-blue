@@ -1,7 +1,7 @@
 site_name: beancount-blue
 repo_url: https://github.com/mescanne/beancount-blue
 site_url: https://mescanne.github.io/beancount-blue
-site_description: This is a template repository for Python projects that use uv for their dependency management.
+site_description: Modern banking API importers, machine learning categorization, and accounting plugins for Beancount and Fava.
 site_author: Mark Scannell
 edit_uri: edit/main/docs/
 repo_name: mescanne/beancount-blue
@@ -9,8 +9,9 @@ copyright: Maintained by <a href="https://mescanne.com">mescanne</a>.
 
 nav:
   - Home: index.md
-  - Modules: modules.md
-  - Importers: importer.md
+  - Fava Extension: fava.md
+  - Core Plugins: modules.md
+  - API Importers & ML: importer.md
 plugins:
   - search
   - mkdocstrings:
