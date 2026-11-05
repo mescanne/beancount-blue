@@ -48,6 +48,7 @@ def fetch_and_cache_state(importer: APIImporter) -> ImporterState:
     # 3. Handle exceptions and update ImporterState envelope
     # 4. Save .tar.gz to disk
 
+
 def run_import_pipeline(importer: APIImporter, existing_ledger: Entries = None) -> Entries:
     """The central nervous system of the importer pipeline."""
     # 1. IO Phase
@@ -59,7 +60,7 @@ def run_import_pipeline(importer: APIImporter, existing_ledger: Entries = None) 
 
     # 3. Machine Learning Phase
     if importer.auto_predict:
-        apply_ml_predictions(importer, imported_entries) # Orchestrates the scikit-learn training/loading
+        apply_ml_predictions(importer, imported_entries)  # Orchestrates the scikit-learn training/loading
 
     # 4. Translation Phase
     final_entries = imported_to_beancount(imported_entries, existing_ledger, ...)

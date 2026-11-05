@@ -20,6 +20,7 @@ dependencies = [
 	"authlib>=1.4.1",
 	"beancount",
 	"beangulp>=0.2.0",
+	"beanquery>=0.2.0",
 	"fava>=1.30.13",
 	"httpx>=0.28.1",
 	"idna>=3.15",
@@ -40,6 +41,7 @@ Documentation = "https://mescanne.github.io/beancount-blue/"
 
 [project.scripts]
 bean-blue-importer = "beancount_blue.importer.cli:app"
+bean-blue-cashflow = "beancount_blue.cashflow.cli:app"
 
 [dependency-groups]
 dev = [
